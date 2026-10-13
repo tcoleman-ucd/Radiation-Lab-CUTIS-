@@ -23,16 +23,19 @@ def extraction(filename):
             if line == "0 1023":      
                 continue
             counts.append(float(line.split(",")[0]))
-    return counts
+    return counts, list(range(len(counts)))
+
+
 
 spe_files = glob.glob("*.Spe")
 
 spectra = {}
-channels = []
+#channels = []
 for file in spe_files:
-    spectra[file] = extraction(file)
-for i,j in enumerate(spectra[file]):
-    channels.append(i)
+    spectra[file], channels = extraction(file)
+    
+#for i,j in enumerate(spectra[file]):
+ #   channels.append(i)
     
 
 
