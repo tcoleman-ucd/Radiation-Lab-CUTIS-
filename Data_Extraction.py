@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import math as m
+import glob
 
 
 def extraction(filename):
@@ -23,12 +24,10 @@ def extraction(filename):
             counts.append(float(line.split(",")[0]))
     return counts
 
+spe_files = glob.glob("*.Spe")
 
+spectra = {}
 
-file_list = "BGO_Ba_0_10.Spe"
-photons = extraction(file_list)
+for file in spe_files:
+    spectra[file] = extraction(file)
 
-
-print(photons)
-
-    
