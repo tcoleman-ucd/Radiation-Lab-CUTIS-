@@ -27,19 +27,19 @@ for file in here.rglob('*.Spe'):
 
         
     
-        plt.close("all")
+    plt.close("all")
 
-        channels = list(range(len(flux_list)))
+    channels = list(range(len(flux_list)))
 
-        fig, ax = plt.subplots(figsize=(9,5))
+    fig, ax = plt.subplots(figsize=(9,5))
 
-        ax.plot(channels, flux_list)
+    ax.plot(channels, flux_list)
 
-        ax.set_xlabel("channels")
-        ax.set_ylabel("flux")
-        plt.title("plot")
+    ax.set_xlabel("channels")
+    ax.set_ylabel("flux")
+    plt.title("plot")
 
-plt.show()
+    plt.show()
 
 
 
