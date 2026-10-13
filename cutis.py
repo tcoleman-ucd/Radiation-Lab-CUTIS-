@@ -10,12 +10,6 @@ for file in here.rglob('*.Spe'):
         spectrum_data = spectrum_file.readlines()
 
 
-
-
-
-
-
-    
     flux_list = []
     is_data_reached = False
     for line in spectrum_data:
@@ -32,6 +26,21 @@ for file in here.rglob('*.Spe'):
             flux_list.append(float(line.split(",")[0]))
 
         
+    
+    plt.close("all")
+    
+    channels = list(range(len(flux_list)))
+    
+    fig, ax = plt.subplots(figsize=(9,5))
+    
+    ax.plot(channels, flux_list)
+    
+    ax.set_xlabel("channels")
+    ax.set_ylabel("flux")
+    plt.title("plot")
 
-        for data in flux_list:
-         print(data) 
+    plt.show()
+
+
+
+        
