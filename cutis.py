@@ -26,7 +26,7 @@ for file in here.rglob('*.Spe'):
             flux_list.append(float(line.split(",")[0]))
 
         
-    
+
     plt.close("all")
 
     channels = list(range(len(flux_list)))
