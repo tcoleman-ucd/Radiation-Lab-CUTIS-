@@ -27,7 +27,22 @@ def extraction(filename):
 spe_files = glob.glob("*.Spe")
 
 spectra = {}
-
+channels = []
 for file in spe_files:
     spectra[file] = extraction(file)
+for i,j in enumerate(spectra[file]):
+    channels.append(i)
+    
+
+
+
+
+
+for i, header in enumerate(spe_files):
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.plot(channels, spectra[header])
+    ax.set_title(f"Spectrum Data: {header}")
+    ax.set_xlabel("x")
+    ax.set_ylabel(f"{header}  (units)")
+plt.show()
 
