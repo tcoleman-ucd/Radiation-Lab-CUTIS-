@@ -15,11 +15,6 @@ def counts_per_sec(filename):
 
 
 
-def remove_background(filenameb, *files):
-    pass
-
-
-
 
 
 
@@ -33,19 +28,11 @@ def extraction(filename):
     for line in spectrum_data:
         line = line.strip()        #It'll remove next line jump in readline
         lines = [line.replace(' ', '') for line in line]
-<<<<<<< HEAD
-        if line == "$MEAS_TIM:":
-           index =np.where(spectrum_data == "$MEAS_TIM:\n")
-           #index = spectrum_data.index("$MEAS_TIM:")
-           time = spectrum_data[index+1]
-           time = float(time.split(" ")[0])
-=======
            #ndex =np.where(spectrum_data == "$MEAS_TIM:")
            #print(spectrum_data)
         index = spectrum_data.index("$MEAS_TIM:\n")
         time = spectrum_data[index+1]
         time = float(time.split(" ")[0])
->>>>>>> abe14c8e8b07deac58adb65dff1a4ec5fe10c8f1
 
         if line == "$DATA:":
             is_data_reached = True   #this will tell the loop do operations after Data line is reached 
@@ -74,6 +61,12 @@ for file in spe_files:
  #   channels.append(i)
     
 
+def remove_background(filenameb, *files):
+    background_counts_per_sec= counts_per_sec(filenameb)
+    file_count_per_sec = counts_per_sec(files)
+    for file in files:
+        background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
+    pass
 
 
 
