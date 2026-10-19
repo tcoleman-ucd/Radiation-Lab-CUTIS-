@@ -71,6 +71,10 @@ for file in spe_files:
 
 
 for i, header in enumerate(spe_files):
+    
+
+
+
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(channels, spectra[header])
     ax.set_title(f"Spectrum Data: {header}")
