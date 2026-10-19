@@ -34,8 +34,8 @@ def extraction(filename):
         line = line.strip()        #It'll remove next line jump in readline
         lines = [line.replace(' ', '') for line in line]
         if line == "$MEAS_TIM:":
-           #ndex =np.where(spectrum_data == "$MEAS_TIM:")
-           index = spectrum_data.index("$MEAS_TIM:")
+           index =np.where(spectrum_data == "$MEAS_TIM:\n")
+           #index = spectrum_data.index("$MEAS_TIM:")
            time = spectrum_data[index+1]
            time = float(time.split(" ")[0])
 
