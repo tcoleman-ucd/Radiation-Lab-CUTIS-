@@ -63,10 +63,11 @@ for file in spe_files:
 
 def remove_background(filenameb, *files):
     background_counts_per_sec= counts_per_sec(filenameb)
-    file_count_per_sec = counts_per_sec(files)
     for file in files:
+        file_count_per_sec = counts_per_sec(files)
+    
         background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
-    pass
+    return background_removed
 
 
 
