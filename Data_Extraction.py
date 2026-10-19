@@ -4,6 +4,25 @@ import numpy as np
 import math as m
 import glob
 
+def counts_per_sec(filename):
+    """
+    Time needs to be in seconds
+    """
+    counts,_ = extraction(filename)
+    
+    count_sec = counts/time
+    return count_sec
+
+
+
+def remove_background(filenameb, *files):
+    pass
+
+
+
+
+
+
 
 def extraction(filename):
     with open(filename, 'r') as file:
@@ -14,6 +33,12 @@ def extraction(filename):
     for line in spectrum_data:
         line = line.strip()        #It'll remove next line jump in readline
         lines = [line.replace(' ', '') for line in line]
+        if line == "$MEAS_TIM:":
+           #ndex =np.where(spectrum_data == "$MEAS_TIM:")
+           index = spectrum_data.index("$MEAS_TIM:")
+           time = spectrum_data[index+1]
+           time = float(time.split(" ")[0])
+
         if line == "$DATA:":
             is_data_reached = True   #this will tell the loop do operations after Data line is reached 
             continue
@@ -23,7 +48,8 @@ def extraction(filename):
             if line == "0 1023":      
                 continue
             counts.append(float(line.split(",")[0]))
-    return counts, list(range(len(counts)))
+        channels = list(range(len(counts)))
+    return counts, channels, time
 
 
 
@@ -32,7 +58,9 @@ spe_files = glob.glob("*.Spe")
 spectra = {}
 #channels = []
 for file in spe_files:
-    spectra[file], channels = extraction(file)
+    spectra[file], channels,time = extraction(file)
+
+    print(time)
     
 #for i,j in enumerate(spectra[file]):
  #   channels.append(i)
@@ -52,3 +80,5 @@ plt.show()
 
 
 
+
+#We to convery to counts per second the background and hen minus that from each pof the files
