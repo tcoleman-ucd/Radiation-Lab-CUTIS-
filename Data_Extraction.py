@@ -55,24 +55,26 @@ spe_files = glob.glob("*.Spe")
 spectra = {}
 #channels = []
 for file in spe_files:
-    spectra[file], channels,time = extraction(file)
+    spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
 
 
-def remove_background(filenameb, *files):
-    background_counts_per_sec= counts_per_sec(filenameb)
-    nobackground = {}
+def remove_background(filenameb, files):
+    background_counts_per_sec,_= counts_per_sec(filenameb)
+    no_b_spectra = {}
     for file in files:
-        file_count_per_sec = counts_per_sec(files)
+        file_count_per_sec,_ = counts_per_sec(file)
     
-        background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
-        nobackground[file] = background_removed(file)
-    return nobackground
+        background_removed = np.array(file_count_per_sec)- np.array(background_counts_per_sec)
+        no_b_spectra[file] = background_removed
+    return no_b_spectra
 
+practice = remove_background("BGO_Background_180s.Spe", spe_files)
+print(practice)
 
 
 for i, header in enumerate(spe_files):
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(channels, spectra[header])
+    ax.plot(channels, practice[header])
     ax.set_title(f"Spectrum Data: {header}")
     ax.set_xlabel("x")
     ax.set_ylabel(f"{header}  (units)")
