@@ -4,15 +4,6 @@ import numpy as np
 import math as m
 import glob
 
-def counts_per_sec(filename):
-    """
-    Time needs to be in seconds
-    """
-    counts,_ = extraction(filename)
-    
-    count_sec = counts/time
-    return count_sec
-
 
 
 
@@ -48,6 +39,17 @@ def extraction(filename):
 
 
 
+
+def counts_per_sec(filename):
+    """
+    Time needs to be in seconds
+    """
+    counts,channels,time = extraction(filename)
+
+    count_sec = np.array(counts)/time
+    return count_sec, channels
+
+
 spe_files = glob.glob("*.Spe")
 
 spectra = {}
@@ -55,11 +57,6 @@ spectra = {}
 for file in spe_files:
     spectra[file], channels,time = extraction(file)
 
-    print(time)
-    
-#for i,j in enumerate(spectra[file]):
- #   channels.append(i)
-    
 
 def remove_background(filenameb, *files):
     background_counts_per_sec= counts_per_sec(filenameb)
@@ -73,10 +70,6 @@ def remove_background(filenameb, *files):
 
 
 for i, header in enumerate(spe_files):
-    
-
-
-
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(channels, spectra[header])
     ax.set_title(f"Spectrum Data: {header}")
@@ -84,7 +77,7 @@ for i, header in enumerate(spe_files):
     ax.set_ylabel(f"{header}  (units)")
 plt.show()
 
-
+plt.close("all")
 
 
 #We to convery to counts per second the background and hen minus that from each pof the files
