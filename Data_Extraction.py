@@ -55,38 +55,24 @@ spe_files = glob.glob("*.Spe")
 spectra = {}
 #channels = []
 for file in spe_files:
-    spectra[file], channels,time = extraction(file)
+    spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
 
 
-def remove_background(filenameb, files):
-    
+def remove_background(filenameb, *files):
     background_counts_per_sec= counts_per_sec(filenameb)
     nobackground = {}
     for file in files:
-        file_count_per_sec = counts_per_sec(files)
+        file_count_per_sec,_ = counts_per_sec(file)
     
         background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
         nobackground[file] = background_removed(file)
     return nobackground
-def amplitude(channels): 
-    calibration = {}
-    for keys, values in calibration.items():
-        if "0_10cm" in keys:
-            noback = remove_background(nobackground, values)
-            amplitude = max(noback) #amplitude
-            amplitude_index = values.index(amplitude) #index at which the amplitude is max, peak
-            channel = channels[amplitude_index] # wavelength at peak
-            
-        
-            
-            calibration[keys] = channel(keys)
-        return calibration
 
-amplitude(nobackground, )
-            
+
+
 for i, header in enumerate(spe_files):
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(channels, spectra[header])
+    ax.plot(channels, practice[header])
     ax.set_title(f"Spectrum Data: {header}")
     ax.set_xlabel("x")
     ax.set_ylabel(f"{header}  (units)")
