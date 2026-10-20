@@ -58,7 +58,8 @@ for file in spe_files:
     spectra[file], channels,time = extraction(file)
 
 
-def remove_background(filenameb, *files):
+def remove_background(filenameb, files):
+    
     background_counts_per_sec= counts_per_sec(filenameb)
     nobackground = {}
     for file in files:
@@ -67,9 +68,22 @@ def remove_background(filenameb, *files):
         background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
         nobackground[file] = background_removed(file)
     return nobackground
+def amplitude(channels): 
+    calibration = {}
+    for keys, values in calibration.items():
+        if "0_10cm" in keys:
+            noback = remove_background(nobackground, values)
+            amplitude = max(noback) #amplitude
+            amplitude_index = values.index(amplitude) #index at which the amplitude is max, peak
+            channel = channels[amplitude_index] # wavelength at peak
+            
+        
+            
+            calibration[keys] = channel(keys)
+        return calibration
 
-
-
+amplitude(nobackground, )
+            
 for i, header in enumerate(spe_files):
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(channels, spectra[header])
@@ -78,7 +92,7 @@ for i, header in enumerate(spe_files):
     ax.set_ylabel(f"{header}  (units)")
 plt.show()
 
-plt.close("all")
+#plt.close("all")
 
 
 #We to convery to counts per second the background and hen minus that from each pof the files
