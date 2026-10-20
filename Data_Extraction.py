@@ -58,16 +58,31 @@ for file in spe_files:
     spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
 
 
-def remove_background(filenameb, *files):
-    background_counts_per_sec= counts_per_sec(filenameb)
-    nobackground = {}
+def remove_background(filenameb, files):
+    background_counts_per_sec,_= counts_per_sec(filenameb)
+    no_b_spectra = {}
     for file in files:
         file_count_per_sec,_ = counts_per_sec(file)
     
-        background_removed = np.array(file_count_per_sec)- np.arrray(background_counts_per_sec)
-        nobackground[file] = background_removed(file)
-    return nobackground
+        background_removed = np.array(file_count_per_sec)- np.array(background_counts_per_sec)
+        no_b_spectra[file] = background_removed
+    return no_b_spectra
 
+#practice = remove_background("BGO_Background_180s.Spe", spe_files)
+#print(practice)
+def amplitude(channels): 
+    noback = remove_background("BGO_Background_180s.Spe", spe_files)
+    calibration = {}
+    for keys, values in noback.items():
+        if "0_10cm" in keys:
+            amplitude_index = np.argmax(values.ravel())
+            channel = channels[amplitude_index]
+            
+           
+    
+            
+            calibration[keys] = channel(keys)
+        return calibration
 
 
 for i, header in enumerate(spe_files):
@@ -78,7 +93,7 @@ for i, header in enumerate(spe_files):
     ax.set_ylabel(f"{header}  (units)")
 plt.show()
 
-#plt.close("all")
+plt.close("all")
 
 
 #We to convery to counts per second the background and hen minus that from each pof the files
