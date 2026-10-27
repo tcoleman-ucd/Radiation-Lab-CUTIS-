@@ -38,7 +38,7 @@ def gaussian(x, A, mu, sigma):
     return (A/(sigma*np.sqrt(2*np.pi))*np.exp(-(x-mu)**2/(2*sigma**2)))
 par1,par2 = curve_fit(gaussian,channels, count_sec, p0=[A, C, 5])
 
-curvex = np.linspace(min(channels), max(channels),2878)
+curvex = np.linspace(min(channels), max(channels)
 curvey = gaussian(curvex,*par1)
 
 
