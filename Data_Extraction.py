@@ -35,6 +35,7 @@ def extraction(filename):
             channels = list(range(len(counts)))
     else:
         #making sure this commit thing worst
+        #NMow making sure this works
     return counts, channels, time
 
 
