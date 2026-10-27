@@ -51,13 +51,12 @@ def counts_per_sec(filename):
 
 
 spe_files = glob.glob("*.Spe")
-
 spectra = {}
 #channels = []
 for file in spe_files:
     spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
 
-
+#* makes it into a list
 def remove_background(filenameb, files):
     background_counts_per_sec,_= counts_per_sec(filenameb)
     no_b_spectra = {}
@@ -66,10 +65,16 @@ def remove_background(filenameb, files):
     
         background_removed = np.array(file_count_per_sec)- np.array(background_counts_per_sec)
         no_b_spectra[file] = background_removed
-    return no_b_spectra
+    return no_b_spectra  
+
 
 practice = remove_background("BGO_Background_180s.Spe", spe_files)
 print(practice)
+
+#Practice is a dictionary of all of the files with their counts
+#If we want to only look at the files that are at 0 degrees/10 cm than we need to search they keys of the dictionary
+#maybe some kind of for loop
+
 
 
 for i, header in enumerate(spe_files):
