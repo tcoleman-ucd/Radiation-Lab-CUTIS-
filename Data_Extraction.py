@@ -7,9 +7,6 @@ import glob
 
 
 
-
-
-
 def extraction(filename):
     with open(filename, 'r') as file:
         spectrum_data = file.readlines()
