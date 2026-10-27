@@ -7,34 +7,34 @@ import glob
 
 
 
-
-
-
 def extraction(filename):
     with open(filename, 'r') as file:
         spectrum_data = file.readlines()
 
     counts = []
     is_data_reached = False
-    for line in spectrum_data:
-        line = line.strip()        #It'll remove next line jump in readline
-        lines = [line.replace(' ', '') for line in line]
-           #ndex =np.where(spectrum_data == "$MEAS_TIM:")
-           #print(spectrum_data)
-        index = spectrum_data.index("$MEAS_TIM:\n")
-        time = spectrum_data[index+1]
-        time = float(time.split(" ")[0])
+    if '.Spe' in filename:
+        for line in spectrum_data:
+            line = line.strip()        #It'll remove next line jump in readline
+            lines = [line.replace(' ', '') for line in line]
+            #ndex =np.where(spectrum_data == "$MEAS_TIM:")
+            #print(spectrum_data)
+            index = spectrum_data.index("$MEAS_TIM:\n")
+            time = spectrum_data[index+1]
+            time = float(time.split(" ")[0])
 
-        if line == "$DATA:":
-            is_data_reached = True   #this will tell the loop do operations after Data line is reached 
-            continue
-        if line == "$ROI:":
-            break
-        if is_data_reached:
-            if line == "0 1023":      
+            if line == "$DATA:":
+                is_data_reached = True   #this will tell the loop do operations after Data line is reached 
                 continue
-            counts.append(float(line.split(",")[0]))
-        channels = list(range(len(counts)))
+            if line == "$ROI:":
+                break
+            if is_data_reached:
+                if line == "0 1023":      
+                    continue
+                counts.append(float(line.split(",")[0]))
+            channels = list(range(len(counts)))
+    else:
+        #making sure this commit thing worst
     return counts, channels, time
 
 
@@ -51,13 +51,12 @@ def counts_per_sec(filename):
 
 
 spe_files = glob.glob("*.Spe")
-
 spectra = {}
 #channels = []
 for file in spe_files:
     spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
 
-
+#* makes it into a list
 def remove_background(filenameb, files):
     background_counts_per_sec,_= counts_per_sec(filenameb)
     no_b_spectra = {}
@@ -66,7 +65,8 @@ def remove_background(filenameb, files):
     
         background_removed = np.array(file_count_per_sec)- np.array(background_counts_per_sec)
         no_b_spectra[file] = background_removed
-    return no_b_spectra
+    return no_b_spectra  
+
 
 #practice = remove_background("BGO_Background_180s.Spe", spe_files)
 #print(practice)#
@@ -82,9 +82,17 @@ def amplitude(channels,spe_files,g):
             
             calibration[keys] = channel
         return calibration
+
+
+
 amplitudechanne = amplitude(channels, spe_files, g)
 def gaussian(x, A, mu, sigma):
     return (A/(sigma*np.sqrt(2*np.pi()))*np.exp(-(x-mu)**2/(2*sigma**2)))
+
+#Practice is a dictionary of all of the files with their counts
+#If we want to only look at the files that are at 0 degrees/10 cm than we need to search they keys of the dictionary
+#maybe some kind of for loop
+
 
 
 
