@@ -90,14 +90,14 @@ def gaussian(x, A, mu, sigma):
 
 
 # for i, header in enumerate(spe_files):
-#     fig, ax = plt.subplots(figsize=(9, 5))
-#     #ax.plot(channels, practice[header])
-#     ax.set_title(f"Spectrum Data: {header}")
-#     ax.set_xlabel("x")
-#     ax.set_ylabel(f"{header}  (units)")
+#      fig, ax = plt.subplots(figsize=(9, 5))
+# #     ax.plot(channels, practice[header])
+#      ax.set_title(f"Spectrum Data: {header}")
+#      ax.set_xlabel("x")
+#      ax.set_ylabel(f"{header}  (units)")
 # plt.show()
 
-# plt.close("all")
+#plt.close("all")
 
 
 #We to convery to counts per second the background and hen minus that from each pof the files
