@@ -69,31 +69,35 @@ def remove_background(filenameb, files):
     return no_b_spectra
 
 #practice = remove_background("BGO_Background_180s.Spe", spe_files)
-#print(practice)
-def amplitude(channels): 
-    noback = remove_background("BGO_Background_180s.Spe", spe_files)
+#print(practice)#
+g = "BGO_Background_180s.Spe"
+def amplitude(channels,spe_files,g): 
+    noback = remove_background(g, spe_files)
     calibration = {}
     for keys, values in noback.items():
         if "0_10cm" in keys:
-            amplitude_index = np.argmax(values.ravel())
+            amplitude = max(values)
+            amplitude_index = np.where(values == amplitude)[0][0]
             channel = channels[amplitude_index]
             
-           
-    
-            
-            calibration[keys] = channel(keys)
+            calibration[keys] = channel
         return calibration
+amplitudechanne = amplitude(channels, spe_files, g)
+def gaussian(x, A, mu, sigma):
+    return (A/(sigma*np.sqrt(2*np.pi()))*np.exp(-(x-mu)**2/(2*sigma**2)))
 
 
-for i, header in enumerate(spe_files):
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.plot(channels, practice[header])
-    ax.set_title(f"Spectrum Data: {header}")
-    ax.set_xlabel("x")
-    ax.set_ylabel(f"{header}  (units)")
-plt.show()
 
-plt.close("all")
+
+# for i, header in enumerate(spe_files):
+#     fig, ax = plt.subplots(figsize=(9, 5))
+#     #ax.plot(channels, practice[header])
+#     ax.set_title(f"Spectrum Data: {header}")
+#     ax.set_xlabel("x")
+#     ax.set_ylabel(f"{header}  (units)")
+# plt.show()
+
+# plt.close("all")
 
 
 #We to convery to counts per second the background and hen minus that from each pof the files
