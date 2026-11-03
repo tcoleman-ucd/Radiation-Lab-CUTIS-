@@ -34,9 +34,9 @@ def amplitude(background_removed, channels):
     return amplitude, peak
 
 A, C = amplitude(background_removed, channels)
-def gaussian(x, A, mu, sigma):
-    g1 = (A/(sigma*np.sqrt(2*np.pi))*np.exp(-(x-mu)**2/(2*sigma**2)))
-    g2 = (A2/(sigma*np.sqrt(2*np.pi))*np.exp(-(x-mu)**2/(2*sigma**2)))
+def gaussian(x, A1, A2, sigma1, sigma2, mu1, mu2):
+    g1 = (A1/(sigma1*np.sqrt(2*np.pi))*np.exp(-(x-mu1)**2/(2*sigma1**2)))
+    g2 = (A2/(sigma2*np.sqrt(2*np.pi))*np.exp(-(x-mu2)**2/(2*sigma2**2)))
     return g1+g2 
 par1,par2 = curve_fit(gaussian,channels, count_sec, p0=[A, C, 5])
 
