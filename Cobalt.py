@@ -7,11 +7,12 @@ from pathlib import Path
 from scipy.optimize import curve_fit
 
 here = Path(".")
-Casium = here/"BGO_Cs_0_10cm_180s.Spe"
+
+Cobalt = here/"BGO_Co_0_10cm_420s.Spe"
 g = "BGO_Background_180s.Spe"
 
 
-count_sec, channels = Data_Extraction.counts_per_sec(Casium)
+count_sec, channels = Data_Extraction.counts_per_sec(Cobalt)
 count_sec1, channels1 = Data_Extraction.counts_per_sec(g)
 
 def remove_background(filenameb, files):
@@ -22,27 +23,15 @@ def remove_background(filenameb, files):
 
 background_removed = remove_background(count_sec, count_sec1)
 
-def amplitude(background_removed, channels): 
-    
-    
-    
-    amplitude = max(background_removed)
-    amplitude_index = np.where(background_removed == amplitude)[0][0]
-    peak = channels[amplitude_index]
-            
-   
-    return amplitude, peak
 
-A, C = amplitude(background_removed, channels)
 def gaussian(x, A1, A2, sigma1, sigma2, mu1, mu2):
     g1 = (A1/(sigma1*np.sqrt(2*np.pi))*np.exp(-(x-mu1)**2/(2*sigma1**2)))
     g2 = (A2/(sigma2*np.sqrt(2*np.pi))*np.exp(-(x-mu2)**2/(2*sigma2**2)))
     return g1+g2 
-par1,par2 = curve_fit(gaussian,channels, count_sec, p0=[A, C, 5])
+par1,par2 = curve_fit(gaussian,channels, count_sec, p0=[0.2,0.2, 570, 620, 5,5])
 
 curvex = np.linspace(min(channels), max(channels))
 curvey = gaussian(curvex,*par1)
-
 
 plt.close("all")
 
