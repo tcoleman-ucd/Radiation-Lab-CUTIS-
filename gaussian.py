@@ -10,10 +10,11 @@ Steps:
 """
  
 import numpy as np
+import glob
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-from Practice import remove_background
-from Practice import extraction
+from Data_Extraction import remove_background
+from Data_Extraction import extraction
  
  
 # ---------------------------------------------------------------------------
@@ -42,6 +43,7 @@ models = {1: one_peak, 2: two_peaks}
 # Step 1: look at the whole spectrum
 # ---------------------------------------------------------------------------
 def plot_spectrum(filename):
+    
     filename = "BGO_Ba_0_10cm_300s.Spe"
     _, channels, _ = extraction(filename)
     
