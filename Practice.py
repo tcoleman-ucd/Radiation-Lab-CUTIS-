@@ -47,10 +47,38 @@ def read_spe(filename):
 
 
 def read_mca(filename):
-    """Read a .mca file (CdTe detector). Placeholder: to be filled in with
-    the .mca parser. It must return the same thing as read_spe:
-    (counts, channels, live_time_seconds)."""
-    raise NotImplementedError(".mca files are not supported yet")
+    '''
+    Function reads an .mca file (CdTe dectector) and returns lists corresponding
+    to counts, channels, and time.
+    ______________
+    Parameters
+    - .mca file: file containing gamma ray detector data.    
+    ______________
+    Outputs
+    - Counts: List of floats values
+        
+    - Channels: List of float values
+        
+    - Time: float value    
+    '''
+
+    with open(filename, 'r') as file:
+        spectrum_data = file.readlines()
+
+    counts = []
+    time = float(spectrum_data[8].replace(' ', '').replace('REAL_TIME-', ''))
+    
+    beginning = spectrum_data.index("<<DATA>>\n") + 1
+    
+    for line in spectrum_data[beginning:]:
+        if line == "<<END>>\n":
+            break
+        else:
+            counts.append(float(line))
+
+    channels = list(range(len(counts)))
+        
+    return counts, channels, time
 
 
 def extraction(filename):
