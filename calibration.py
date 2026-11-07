@@ -187,6 +187,3 @@ if __name__ == "__main__":
     channels, channel_errs, energies = get_centroids(calibration_peaks)
     cal = calibrate(channels, channel_errs, energies)
     plot_calibration(channels, channel_errs, energies, cal, "BGO calibration")
-
-    # example: energy of a peak at channel 280 +/- 0.4
-    print(channel_to_energy(280, 0.4, cal))
