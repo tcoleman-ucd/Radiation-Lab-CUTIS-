@@ -1,5 +1,5 @@
 """
-peak_fitting.py  (simple version)
+peak_fitting.py 
  
 Fits a Gaussian peak (or two peaks) sitting on a straight-line background.
 Uses extraction() from data_extraction.py to get the counts and channels.
@@ -12,7 +12,7 @@ Steps:
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
- 
+from Practice import remove_background
 from Practice import extraction
  
  
@@ -42,18 +42,21 @@ models = {1: one_peak, 2: two_peaks}
 # Step 1: look at the whole spectrum
 # ---------------------------------------------------------------------------
 def plot_spectrum(filename):
-    counts, channels, time = extraction(filename)
+    filename = "BGO_Ba_0_10cm_300s.Spe"
+    _, channels, _ = extraction(filename)
+    
+    counts = remove_background(BACKGROUND, filename)
     plt.plot(channels, counts)
     plt.title(filename)
     plt.xlabel("Channel")
-    plt.ylabel("Counts")
+    plt.ylabel("Counts per sec")
     plt.show()
  
  
 # ---------------------------------------------------------------------------
 # Step 2: fit the peak(s) inside a window of channels
 # ---------------------------------------------------------------------------
-def fit_peak(filename, low, high, guess_channels, show_plot=True):
+def fit_peak(BACKGROUND, filename, low, high, guess_channels, show_plot=True):
     """
     filename       : the .Spe file
     low, high      : channel window around the peak(s), e.g. 400 and 600
@@ -61,7 +64,9 @@ def fit_peak(filename, low, high, guess_channels, show_plot=True):
     show_plot      : set to False to skip the plot (used by the calibration loop)
     """
     # 1. get the data and cut out the window
-    counts, channels, time = extraction(filename)
+    _, channels, _ = extraction(filename)
+    counts = remove_background(BACKGROUND, filename)
+    #remove background
     x = np.array(channels[low:high])
     y = np.array(counts[low:high])
  
@@ -117,13 +122,14 @@ def fit_peak(filename, low, high, guess_channels, show_plot=True):
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     filename = "BGO_Cs_0_10cm_180s.Spe"
+    Background =  "BGO_Background_180s.Spe"
     filename2 = "BGO_Ba_0_10cm_300s.Spe"
 
-    plot_spectrum(filename)                              # 1. look first, then pick numbers
-    fit_peak(filename, low=260, high=360, guess_channels=[280])   # 2. fit (edit these numbers)
+    #plot_spectrum(filename)                              # 1. look first, then pick numbers
+    fit_peak(Background, filename, low=260, high=360, guess_channels=[280])   # 2. fit (edit these numbers)
 
 
-    plot_spectrum(filename2)                              # 1. look first, then pick numbers
-    fit_peak(filename2, low=115, high=200, guess_channels=[140, 167]) 
-    fit_peak(filename2, low=55, high=85, guess_channels=[77]) 
+    #plot_spectrum(filename2)                              # 1. look first, then pick numbers
+    fit_peak(Background, filename2, low=115, high=200, guess_channels=[140, 167]) 
+    fit_peak(Background, filename2, low=55, high=85, guess_channels=[77]) 
     
