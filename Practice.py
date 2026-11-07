@@ -81,6 +81,7 @@ def read_mca(filename):
     return counts, channels, time
 
 
+
 def extraction(filename):
     """Read any supported spectrum file. Returns (counts, channels, time)."""
     suffix = Path(filename).suffix.lower()
