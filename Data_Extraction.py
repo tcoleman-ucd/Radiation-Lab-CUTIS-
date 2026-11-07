@@ -88,7 +88,6 @@ def extraction(filename):
    
     # Create the complete path to the specific file
     full_path = cutis_folder / filename
-    print(f"yo {full_path}")
     # Extract the file extension (e.g., '.mca')
     suffix = full_path.suffix.lower()
     #suffix = Path(filename).suffix.lower()
