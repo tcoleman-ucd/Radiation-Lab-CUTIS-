@@ -1,112 +1,144 @@
+"""
+data_extraction.py
+------------------
+Read gamma-ray spectrum files (.Spe for NaI/BGO, .mca for CdTe) and do the
+first processing steps: counts -> count rate, background subtraction, and a
+rough peak-channel finder.
 
-import matplotlib.pyplot as plt
+Every function returns plain numpy arrays so the next stage of the pipeline
+(peak fitting, calibration, ...) can use them directly.
+
+
+.mca file and differentiating between all the background data
+
+so there should be a background for one detector another detetcor and so on and so forth
+"""
+
+import re
+from pathlib import Path
+
 import numpy as np
-import math as m
-import glob
+
+cutis_folder = Path(__file__).parent / "CUITS"  # Folder directory with all of the data
+# ----------------------------------------------------------------------------
+# Reading files
+# ----------------------------------------------------------------------------
+def read_spe(filename):
+    """Read a .Spe file. Returns (counts, channels, live_time_seconds)."""
+    with open(filename, "r") as f:
+        lines = [line.strip() for line in f]
+
+    # $MEAS_TIM: is followed by a line like "180 185" (live time, real time)
+    time = float(lines[lines.index("$MEAS_TIM:") + 1].split()[0])
+
+    # $DATA: is followed by a header line ("0 1023" = first/last channel),
+    # then one count value per line until the next "$" keyword (e.g. $ROI:)
+    start = lines.index("$DATA:") + 2
+    counts = []
+    for line in lines[start:]:
+        if line.startswith("$"):
+            break
+        if line:
+            counts.append(float(line.replace(",", " ").split()[0]))
+
+    counts = np.array(counts)
+    channels = np.arange(len(counts))
+    return counts, channels, time
 
 
+def read_mca(filename):
+    '''
+    Function reads an .mca file (CdTe dectector) and returns lists corresponding
+    to counts, channels, and time.
+    ______________
+    Parameters
+    - .mca file: file containing gamma ray detector data.    
+    ______________
+    Outputs
+    - Counts: List of floats values
+        
+    - Channels: List of float values
+        
+    - Time: float value    
+    '''
 
-
-def extraction(filename):
     with open(filename, 'r') as file:
         spectrum_data = file.readlines()
 
     counts = []
-    is_data_reached = False
-    if '.Spe' in filename:
-        for line in spectrum_data:
-            line = line.strip()        #It'll remove next line jump in readline
-            lines = [line.replace(' ', '') for line in line]
-            #ndex =np.where(spectrum_data == "$MEAS_TIM:")
-            #print(spectrum_data)
-            index = spectrum_data.index("$MEAS_TIM:\n")
-            time = spectrum_data[index+1]
-            time = float(time.split(" ")[0])
+    time = float(spectrum_data[8].replace(' ', '').replace('REAL_TIME-', ''))
+    
+    beginning = spectrum_data.index("<<DATA>>\n") + 1
+    
+    for line in spectrum_data[beginning:]:
+        if line == "<<END>>\n":
+            break
+        else:
+            counts.append(float(line))
 
-            if line == "$DATA:":
-                is_data_reached = True   #this will tell the loop do operations after Data line is reached 
-                continue
-            if line == "$ROI:":
-                break
-            if is_data_reached:
-                if line == "0 1023":      
-                    continue
-                counts.append(float(line.split(",")[0]))
-            channels = list(range(len(counts)))
-    else:
-        #making sure this commit thing worst
-        #NMow making sure this works
+    channels = list(range(len(counts)))
+        
     return counts, channels, time
 
 
 
+def extraction(filename):
+    """Read any supported spectrum file. Returns (counts, channels, time)."""
+    cutis_folder = Path(__file__).parent / "CUITS"
+   
+    # Create the complete path to the specific file
+    full_path = cutis_folder / filename
+    # Extract the file extension (e.g., '.mca')
+    suffix = full_path.suffix.lower()
+    #suffix = Path(filename).suffix.lower()
+    if suffix == ".spe":
+        return read_spe(full_path)
+    if suffix == ".mca":
+        return read_mca(full_path)
 
+
+
+# ----------------------------------------------------------------------------
+# Processing
+# ----------------------------------------------------------------------------
 def counts_per_sec(filename):
+    """Return (count rate in counts/s, channels) for one file."""
+    counts, channels, time = extraction(filename)
+    return counts / time, channels
+
+
+def remove_background(background_file, file):
+    """Subtract the background count RATE from each file's count rate.
+
+    Returns {filename: background-subtracted count rate array}.
+    (Both are converted to counts/s first, since the runs have different lengths.)
     """
-    Time needs to be in seconds
+    background_rate, _ = counts_per_sec(background_file)
+
+    no_background = []
+
+    rate, _ = counts_per_sec(file)
+
+    no_background = rate - background_rate
+    return no_background
+
+
+def amplitude(channels, files, background_file, tag="_0_10cm"):
+    """For files whose name contains `tag` (default: 0 degrees, 10 cm), find
+    the channel of the highest background-subtracted point. The tag must start
+    at a number boundary, so "0_10cm" does not match "30_10cm".
+
+    Returns {filename: peak_channel}. This is only a rough first guess to seed
+    the Gaussian fits, not the final centroid. It picks the tallest bin in the
+    whole spectrum, so use an ROI per peak when a spectrum has several lines.
     """
-    counts,channels,time = extraction(filename)
+    no_background = remove_background(background_file, files)
 
-    count_sec = np.array(counts)/time
-    return count_sec, channels
-
-
-spe_files = glob.glob("*.Spe")
-spectra = {}
-#channels = []
-for file in spe_files:
-    spectra[file], channels,time = extraction(file)      #Th edictionary just gets the counts
-
-#* makes it into a list
-def remove_background(filenameb, files):
-    background_counts_per_sec,_= counts_per_sec(filenameb)
-    no_b_spectra = {}
-    for file in files:
-        file_count_per_sec,_ = counts_per_sec(file)
-    
-        background_removed = np.array(file_count_per_sec)- np.array(background_counts_per_sec)
-        no_b_spectra[file] = background_removed
-    return no_b_spectra  
-
-
-#practice = remove_background("BGO_Background_180s.Spe", spe_files)
-#print(practice)#
-g = "BGO_Background_180s.Spe"
-def amplitude(channels,spe_files,g): 
-    noback = remove_background(g, spe_files)
-    calibration = {}
-    for keys, values in noback.items():
-        if "0_10cm" in keys:
-            amplitude = max(values)
-            amplitude_index = np.where(values == amplitude)[0][0]
-            channel = channels[amplitude_index]
-            
-            calibration[keys] = channel
-        return calibration
-
-
-
-amplitudechanne = amplitude(channels, spe_files, g)
-def gaussian(x, A, mu, sigma):
-    return (A/(sigma*np.sqrt(2*np.pi()))*np.exp(-(x-mu)**2/(2*sigma**2)))
-
-#Practice is a dictionary of all of the files with their counts
-#If we want to only look at the files that are at 0 degrees/10 cm than we need to search they keys of the dictionary
-#maybe some kind of for loop
+    peak_channels = {}
+    for file, rate in no_background.items():
+        peak_channels[file] = channels[np.argmax(rate)]
+    return peak_channels
 
 
 
 
-
-# for i, header in enumerate(spe_files):
-#     fig, ax = plt.subplots(figsize=(9, 5))
-#     #ax.plot(channels, practice[header])
-#     ax.set_title(f"Spectrum Data: {header}")
-#     ax.set_xlabel("x")
-#     ax.set_ylabel(f"{header}  (units)")
-# plt.show()
-
-# plt.close("all")
-
-
-#We to convery to counts per second the background and hen minus that from each pof the files
