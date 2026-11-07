@@ -13,25 +13,29 @@ def extraction(filename):
 
     counts = []
     is_data_reached = False
-    for line in spectrum_data:
-        line = line.strip()        #It'll remove next line jump in readline
-        lines = [line.replace(' ', '') for line in line]
-           #ndex =np.where(spectrum_data == "$MEAS_TIM:")
-           #print(spectrum_data)
-        index = spectrum_data.index("$MEAS_TIM:\n")
-        time = spectrum_data[index+1]
-        time = float(time.split(" ")[0])
+    if '.Spe' in filename:
+        for line in spectrum_data:
+            line = line.strip()        #It'll remove next line jump in readline
+            lines = [line.replace(' ', '') for line in line]
+            #ndex =np.where(spectrum_data == "$MEAS_TIM:")
+            #print(spectrum_data)
+            index = spectrum_data.index("$MEAS_TIM:\n")
+            time = spectrum_data[index+1]
+            time = float(time.split(" ")[0])
 
-        if line == "$DATA:":
-            is_data_reached = True   #this will tell the loop do operations after Data line is reached 
-            continue
-        if line == "$ROI:":
-            break
-        if is_data_reached:
-            if line == "0 1023":      
+            if line == "$DATA:":
+                is_data_reached = True   #this will tell the loop do operations after Data line is reached 
                 continue
-            counts.append(float(line.split(",")[0]))
-        channels = list(range(len(counts)))
+            if line == "$ROI:":
+                break
+            if is_data_reached:
+                if line == "0 1023":      
+                    continue
+                counts.append(float(line.split(",")[0]))
+            channels = list(range(len(counts)))
+    else:
+        #making sure this commit thing worst
+        #NMow making sure this works
     return counts, channels, time
 
 
@@ -79,6 +83,9 @@ def amplitude(channels,spe_files,g):
             
             calibration[keys] = channel
         return calibration
+
+
+
 amplitudechanne = amplitude(channels, spe_files, g)
 def gaussian(x, A, mu, sigma):
     return (A/(sigma*np.sqrt(2*np.pi()))*np.exp(-(x-mu)**2/(2*sigma**2)))
