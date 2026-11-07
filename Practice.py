@@ -7,6 +7,11 @@ rough peak-channel finder.
 
 Every function returns plain numpy arrays so the next stage of the pipeline
 (peak fitting, calibration, ...) can use them directly.
+
+
+.mca file and differentiating between all the background data
+
+so there should be a background for one detector another detetcor and so on and so forth
 """
 
 import re
@@ -67,7 +72,7 @@ def counts_per_sec(filename):
     return counts / time, channels
 
 
-def remove_background(background_file, files):
+def remove_background(background_file, file):
     """Subtract the background count RATE from each file's count rate.
 
     Returns {filename: background-subtracted count rate array}.
@@ -75,12 +80,11 @@ def remove_background(background_file, files):
     """
     background_rate, _ = counts_per_sec(background_file)
 
-    no_background = {}
-    for file in files:
-        rate, _ = counts_per_sec(file)
-        if len(rate) != len(background_rate):
-            raise ValueError(f"{file} and {background_file} have different channel counts")
-        no_background[file] = rate - background_rate
+    no_background = []
+
+    rate, _ = counts_per_sec(file)
+
+    no_background = rate - background_rate
     return no_background
 
 
@@ -101,37 +105,5 @@ def amplitude(channels, files, background_file, tag="_0_10cm"):
     return peak_channels
 
 
-def load_spectra(folder=".", pattern="*.Spe"):
-    """Load every matching file in `folder` (relative path, no hard-coding).
-
-    Returns ({filename: counts}, channels, {filename: live_time}).
-    """
-    spectra, times, channels = {}, {}, None
-    for path in sorted(Path(folder).glob(pattern)):
-        counts, channels, time = extraction(path)
-        spectra[path.name] = counts
-        times[path.name] = time
-    return spectra, channels, times
 
 
-# ----------------------------------------------------------------------------
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    BACKGROUND = "BGO_Background_180s.Spe"
-    spe_files = sorted(str(p) for p in Path(".").glob("*.Spe"))
-    if not spe_files:
-        raise SystemExit("No .Spe files found in the current folder.")
-
-    _, channels, _ = extraction(spe_files[0])
-    print(amplitude(channels, spe_files, BACKGROUND))
-
-    # Quick look at every background-subtracted spectrum
-    no_bg = remove_background(BACKGROUND, spe_files)
-    for name, rate in no_bg.items():
-        fig, ax = plt.subplots(figsize=(9, 5))
-        ax.plot(channels, rate)
-        ax.set_title(f"Spectrum Data: {name}")
-        ax.set_xlabel("Channel")
-        ax.set_ylabel("Count rate - background (counts/s)")
-    plt.show()
