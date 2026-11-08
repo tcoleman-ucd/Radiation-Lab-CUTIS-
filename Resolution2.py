@@ -19,7 +19,7 @@ def resolution_model(E, a, b, c):
     """
     return a + b * E + c * (E ** 2)
 
-def resolution(cal,calibration_peaks ):
+def resolution():
 
     channels, channel_errs, energies = get_centroids(calibration_peaks)
     cal = calibrate(channels, channel_errs, energies)
@@ -69,13 +69,18 @@ def resolution(cal,calibration_peaks ):
     E_line = np.logspace(np.log10(min(energies)*0.8), np.log10(max(energies)*1.2), 200)    
 
     delta_E_fit = resolution_model(E_line, *popt)
-    print(f"this is WHAT I WANT TO PRINT{popt}")
+    #print(f"this is WHAT I WANT TO PRINT{popt}")
     R_fit = np.sqrt(np.maximum(delta_E_fit, 0)) / E_line
 
-    plt.plot(
-        E_line, R_fit, "r-", linewidth=2, 
-        label=r"Fit: $R = \sqrt{aE^{-2} + bE^{-1} + c}$"
-    )
+    plt.figure(figsize = (10, 6))
+    plt.errorbar(energies, R_values, yerr = R_errs, fmt="o",label = "Errors")
+    plt.plot(E_line, R_fit, "r-", linewidth=2, label=r"Fit: $R = \sqrt{aE^{-2} + bE^{-1} + c}$")
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Energy (keV)")
+    plt.ylabel("Resolution")
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend()
     plt.show()
      
      
