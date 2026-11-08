@@ -5,9 +5,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-#import gaussian and calibration to obtain necessary parameters
-from gaussian import fit_peak
-from calibration import (calibration_peaks, get_centroids, calibrate,
+#import Gaussian and calibration to obtain necessary parameters
+from Gaussian import fit_peak
+from Calibration import (calibration_peaks, get_centroids, calibrate,
                          channel_to_energy)
 
 #resolution model - resolution varies with energy
