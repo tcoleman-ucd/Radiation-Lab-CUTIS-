@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 #import Gaussian and calibration to obtain necessary parameters
-from Gaussian import fit_peak
-from Calibration import (calibration_peaks, get_centroids, calibrate,
+from gaussian import fit_peak
+from calibration import (calibration_peaks, get_centroids, calibrate,
                          channel_to_energy)
 
 #resolution model - resolution varies with energy
@@ -73,10 +73,12 @@ def resolution():
     R_fit = np.sqrt(np.maximum(delta_E_fit, 0)) / E_line
 
     plt.figure(figsize = (10, 6))
-    plt.errorbar(energies, R_values, yerr = R_errs, fmt="o",label = "Errors")
+    plt.errorbar(energies, R_values, yerr = R_errs, fmt="o",color="black",label = "Errors")
+    #plt.plot(energies, R_values)
     plt.plot(E_line, R_fit, "r-", linewidth=2, label=r"Fit: $R = \sqrt{aE^{-2} + bE^{-1} + c}$")
     plt.xscale("log")
     plt.yscale("log")
+    plt.title("Resolution")
     plt.xlabel("Energy (keV)")
     plt.ylabel("Resolution")
     plt.grid(True, which="both", ls="--", alpha=0.5)
