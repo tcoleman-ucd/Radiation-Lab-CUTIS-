@@ -13,9 +13,114 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from Practice import remove_background
+from scipy.ndimage import gaussian_filter1d
+
 from Practice import extraction
- 
- 
+
+# ---------------------------------------------------------------------------
+# Peak Finding
+# ---------------------------------------------------------------------------
+from scipy.signal import find_peaks, peak_widths
+
+from scipy.signal import find_peaks, peak_widths
+import matplotlib.pyplot as plt
+
+
+def detect_peaks(channels, counts,
+                 prominence=5,
+                 min_width=2,
+                 min_distance=5,
+                 baseline_sigma=5,
+                 show_plot=False):
+    """
+    Detect significant peaks within a spectrum.
+
+    Parameters
+    ----------
+    channels : array-like
+        Channel numbers.
+
+    counts : array-like
+        Counts (or counts/s) in each channel.
+
+    prominence : float
+        Minimum peak prominence.
+
+    min_width : float
+        Minimum peak width (in channels).
+
+    min_distance : float
+        Minimum separation between peaks.
+
+    show_plot : bool
+        If True, display the spectrum with detected peaks marked.
+
+    Returns
+    -------
+    peak_info : list of dict
+        Each dictionary contains:
+            channel
+            height
+            prominence
+            width
+    """
+    background = counts[counts < np.percentile(counts, 75)]
+
+    baseline = np.median(background)
+    noise = np.std(background)
+
+    peaks, properties = find_peaks(
+        counts,
+        prominence=prominence,
+        width=min_width,
+        distance=min_distance
+    )
+
+    widths = peak_widths(
+        counts,
+        peaks,
+        rel_height=0.5
+    )[0]
+
+    peak_info = []
+
+    for i, peak in enumerate(peaks):
+        peak_info.append({
+            "channel": channels[peak],
+            "height": counts[peak],
+            "prominence": properties["prominences"][i],
+            "width": widths[i]
+        })
+
+    max_count = np.max(counts)
+    print(max_count)
+
+    peak_info = [
+        peak for peak in peak_info
+        if peak["height"] > 0.055 * max_count
+    ]
+
+    if show_plot:
+        plt.figure(figsize=(9, 5))
+        plt.plot(channels, counts, color="black", label="Spectrum")
+
+        for peak in peak_info:
+            plt.axvline(
+                peak["channel"],
+                color="red",
+                linestyle="--",
+                alpha=0.7
+            )
+
+        plt.xlabel("Channel")
+        plt.ylabel("Counts")
+        plt.title("Detected Peaks")
+        plt.legend()
+        plt.show()
+
+    return peak_info
+
+
 # ---------------------------------------------------------------------------
 # The models
 # ---------------------------------------------------------------------------
@@ -41,7 +146,7 @@ models = {1: one_peak, 2: two_peaks}
 # ---------------------------------------------------------------------------
 # Step 1: look at the whole spectrum
 # ---------------------------------------------------------------------------
-def plot_spectrum(filename):
+def plot_spectrum(filename, BACKGROUND):
     filename = "BGO_Ba_0_10cm_300s.Spe"
     _, channels, _ = extraction(filename)
     
@@ -121,15 +226,15 @@ def fit_peak(BACKGROUND, filename, low, high, guess_channels, show_plot=True):
 
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    filename = "BGO_Cs_0_10cm_180s.Spe"
-    Background =  "BGO_Background_180s.Spe"
-    filename2 = "BGO_Ba_0_10cm_300s.Spe"
+    filename = "CUITS/BGO_Cs_0_10cm_180s.Spe"
+    Background =  "CUITS/BGO_Background_180s.Spe"
+    filename2 = "CUITS/BGO_Ba_0_10cm_300s.Spe"
 
     #plot_spectrum(filename)                              # 1. look first, then pick numbers
     fit_peak(Background, filename, low=260, high=360, guess_channels=[280])   # 2. fit (edit these numbers)
 
 
     #plot_spectrum(filename2)                              # 1. look first, then pick numbers
-    fit_peak(Background, filename2, low=115, high=200, guess_channels=[140, 167]) 
-    fit_peak(Background, filename2, low=55, high=85, guess_channels=[77]) 
+    fit_peak(Background, filename2, low=115, high=200, guess_channels=[140, 167])
+    fit_peak(Background, filename2, low=55, high=85, guess_channels=[77])
     
