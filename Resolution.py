@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from pathlib import Path
 
 
 def resolution_model(E, a, b, c):
@@ -43,27 +44,51 @@ def resolution(cal, title="Resolution", show=True):
     for n, v, e in zip("abc", popt, perr):
         print(f"  {n} = {v:.4g} +/- {e:.2g}")
     print(f"  reduced chi2 = {chi2_red:.2f}")
-    print(f"{'E (keV)':>10} {'FWHM (keV)':>12} {'R':>10} {'R err':>10} {'R fit':>10}")
-    for row in zip(E, dE, R, R_err, R_fit):
-        print("{:10.2f} {:12.3f} {:10.4f} {:10.4f} {:10.4f}".format(*row))
 
+    detectors, isotopes = [], []
+    for pk in cal.peaks:
+        tokens = Path(pk["source"]).stem.split("_")
+        detectors.append(tokens[0])
+        isotopes.append(tokens[1])
+
+    E_fit, E_fit_err = cal.energy(cal.channels, cal.channel_errs)
+
+    print("\nDetector  Isotope  E known  E fit   E fit err  FWHM (keV)  FWHM err      R    R err   R fit")
+    for i, pk in enumerate(cal.peaks):
+        det, iso = Path(pk["source"]).stem.split("_")[:2]
+        print(f"{det:8}  {iso:7}  {E[i]:7.1f}  {E_fit[i]:6.1f}  {E_fit_err[i]:9.2f}  "
+              f"{dE[i]:10.2f}  {dE_err[i]:8.2f}  "
+              f"{R[i]:6.3f}  {R_err[i]:6.3f}  {R_fit[i]:6.3f}")
 
     E_line = np.logspace(np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200)
     R_line = np.sqrt(resolution_model(E_line, *popt)) / E_line
 
     plt.figure(figsize=(10, 6))
     plt.errorbar(E, R*100, yerr=R_err*100, fmt="o", color="black", capsize=3, label="Data")
+    offsets = [(-10, 28), (10, -32)]      # first label above-left, second below-right
+    for i, pk in enumerate(cal.peaks):
+        det, iso = Path(pk["source"]).stem.split("_")[:2]
+        plt.annotate(f"{iso} {E[i]:.0f} keV", (E[i], R[i] * 100),
+                     textcoords="offset points", xytext=offsets[i % 2],
+                     ha="center", fontsize=9,
+                     arrowprops=dict(arrowstyle="-", color="gray", lw=0.8))
     plt.plot(E_line, R_line*100, "r-", lw=2, label=r"Fit: $R=\sqrt{aE^{-2}+bE^{-1}+c}$")
-    plt.xscale("log"); plt.yscale("log")
-    plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E")
-    plt.title(title); plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xticks([10, 20, 50, 100, 200, 500, 1000, 2000], ["10", "20", "50", "100", "200", "500", "1000", "2000"])
+    plt.yticks([1, 2, 5, 10, 20, 50, 60, 70, 80, 90, 100], ["1", "2", "5", "10", "20", "50", "60", "70", "80", "90", "100"])
+    plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E (%)")
+    plt.title(title)
+    plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
         
 
     plt.figure(figsize=(7, 3.5))
     plt.errorbar(E, residuals, yerr=R_err, fmt="o", color="black", capsize=3)
     plt.axhline(0, color="red", ls="--")
-    plt.xlabel("Energy (keV)"); plt.ylabel(r"$R_{data}-R_{fit}$")
-    plt.title(f"{title} residuals"); plt.grid(True, ls="--", alpha=0.5)
+    plt.xlabel("Energy (keV)")
+    plt.ylabel(r"$R_{data}-R_{fit}$")
+    plt.title(f"{title} residuals")
+    plt.grid(True, ls="--", alpha=0.5)
     plt.show()
 
     return {"params": popt, "errs": perr, "E": E, "R": R, "R_err": R_err,

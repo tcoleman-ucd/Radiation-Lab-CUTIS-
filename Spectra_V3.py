@@ -33,7 +33,7 @@ from scipy.signal import find_peaks
 
 from Data_Extraction import read_spe, read_mca, cutis_folder
 from gaussian import gaussian
-from ResolutionValeria import   resolution
+from Resolution import   resolution
 from calibration import (calibrate as fit_calibration,
                          channel_to_energy,
                          plot_calibration)
