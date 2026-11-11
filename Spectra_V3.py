@@ -33,6 +33,7 @@ from scipy.signal import find_peaks
 
 from Data_Extraction import read_spe, read_mca, cutis_folder
 from gaussian import gaussian
+from ResolutionValeria import   resolution
 from calibration import (calibrate as fit_calibration,
                          channel_to_energy,
                          plot_calibration)
@@ -123,7 +124,7 @@ class Spectrum:
 
         self.fits = []        # every window fit made with pick_peaks()
         self.peaks = []       # peaks that were given a known energy (used for calibration)
-
+        self.skipped = False 
     # ------------------------------------------------------------------
     # loading
     # ------------------------------------------------------------------
@@ -386,6 +387,7 @@ class Spectrum:
     # ------------------------------------------------------------------
     # pick peaks (interactive, or pass the windows yourself)
     # ------------------------------------------------------------------
+  
     def pick_peaks(self, windows=None):
         """
         windows=None -> interactive (drag windows, then type the energies).
@@ -396,22 +398,19 @@ class Spectrum:
         if windows is None:
             fits = self._select_windows()
             peaks = sorted((p for f in fits for p in f["peaks"]), key=lambda p: p["mu"])
+            if not peaks:                       # nothing selected -> skip this isotope
+                print(f"\n{self.filename}: no peaks selected, skipping this spectrum.")
+                self.fits, self.peaks, self.skipped = [], [], True
+                return self.peaks
             self._ask_energies(peaks)
-        else:
-            fits = []
-            for w in windows:
-                low, high, energies = w[0], w[1], list(w[2])
-                guesses = w[3] if len(w) > 3 else None
-                fit = self.fit_window(low, high, len(energies), guesses)
-                for pk, E in zip(fit["peaks"], energies):
-                    pk["energy"] = float(E)
-                self._print_fit(fit)
-                fits.append(fit)
-            peaks = sorted((p for f in fits for p in f["peaks"]), key=lambda p: p["mu"])
 
         self.fits = fits
         self.peaks = [p for p in peaks if p["energy"] is not None]
-        print(f"\n{self.filename}: {len(self.peaks)} peak(s) kept for calibration.")
+        self.skipped = len(self.peaks) == 0
+        if self.skipped:
+            print(f"\n{self.filename}: no peaks kept, skipping this spectrum.")
+        else:
+            print(f"\n{self.filename}: {len(self.peaks)} peak(s) kept for calibration.")
         return self.peaks
 
     # ------------------------------------------------------------------
@@ -428,10 +427,10 @@ class Spectrum:
                        (for the others call other.pick_peaks(windows=...) first)
         force_linear : use the straight line even if the c2 test says non-linear
         """
-        if windows is not None or not self.peaks:
+        if windows is not None or (not self.peaks and not self.skipped):
             self.pick_peaks(windows)
         for other in others:
-            if not other.peaks:
+            if not other.peaks and not other.skipped:
                 other.pick_peaks()
         return Calibration([self, *others], force_linear=force_linear)
 
@@ -499,6 +498,7 @@ class Calibration:
         plot_calibration(self.channels, self.channel_errs, self.energies, self.fit, title)
 
 
+
 DETECTORS = {
     "BGO": ("BGO_Background_180s.Spe", {
         "Cs": "BGO_Cs_0_10cm_180s.Spe",
@@ -522,7 +522,7 @@ DETECTORS = {
 
 WINDOWS = {}
 
-def calibrate_detector(name, background, files):
+def calibrate_and_resolution_detector(name, background, files):
     """Load every source for ONE detector and build its own calibration."""
     spectra = {src: Spectrum.from_file(f, background) for src, f in files.items()}
     for s in spectra.values():
@@ -539,17 +539,18 @@ def calibrate_detector(name, background, files):
         cal = first.calibrate(*rest)  # interactive: a plot opens for each spectrum
  
     cal.plot(f"{name} calibration")
-    return spectra, cal
+    res = resolution(cal, f"{name} resolution")
+    return spectra, cal, res
 # ===========================================================================
 def main():
     
     results = {}
     for name, (background, files) in DETECTORS.items():
         print(f"\n######## {name} ########")
-        results[name] = calibrate_detector(name, background, files)
+        results[name] = calibrate_and_resolution_detector(name, background, files)
  
     # use one:  energy of channel 280 +/- 0.4 on the first detector
-    spectra, cal = results["BGO"]
+    spectra, cal, res  = results["BGO"]
     print(cal.energy(280, 0.4))
  
     return results
