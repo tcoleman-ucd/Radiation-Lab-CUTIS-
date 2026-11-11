@@ -37,7 +37,7 @@ from calibration import (calibrate as fit_calibration,
                          channel_to_energy,
                          plot_calibration)
 
-FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2))          # FWHM = 2.355 * sigma
+FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) # FWHM = 2.355 * sigma - fwhm factor
 
 # Known gamma lines (keV) from Table 2, used only to SUGGEST energies when you
 # are asked for them (matched on the source name in the file name: Cs / Co / Ba).
@@ -45,6 +45,7 @@ KNOWN_LINES = {
     "Cs": [661.657],
     "Co": [1173.228, 1332.492],
     "Ba": [302.8508, 356.0129],
+    "Am": [26.3446]
 }
 
 
@@ -55,35 +56,35 @@ def _resolve_path(filename):
     """Find a data file: as given, or inside the CUITS folder next to Data_Extraction.py."""
     path = Path(filename)
     if path.exists():
-        return path
-    path = Path(cutis_folder) / filename
+        return path # check if the file exists in the directory (MAY BE UNECESARY)
+    path = Path(cutis_folder) / filename #go inside the folder in case it is not in the current directory
     if path.exists():
-        return path
-    raise FileNotFoundError(f"Could not find '{filename}' (also looked in {cutis_folder})")
+        return path 
+    raise FileNotFoundError(f"Could not find '{filename}' (also looked in {cutis_folder})") #could not found the file no where
 
 
 def _model(x, *p):
     """n Gaussians + straight line.  p = [A1, mu1, sigma1, (A2, mu2, sigma2, ...), m, b]."""
-    n = (len(p) - 2) // 3
-    y = p[-2] * x + p[-1]
+    n = (len(p) - 2) // 3 #how many peaks being fitted simultaneously
+    y = p[-2] * x + p[-1] # slope and intercept - x is channels and y counts
     for i in range(n):
-        y = y + gaussian(x, *p[3 * i:3 * i + 3])
+        y = y + gaussian(x, *p[3 * i:3 * i + 3]) # parameters: amplitude, center position and standard deviation
     return y
 
-
+#guess the center of the peak for gaussian
 def _guess_centres(x, y, n):
     """Rough channel of each of the n peaks in the window."""
-    edge_n = max(2, len(x) // 5)
-    ex = np.r_[x[:edge_n], x[-edge_n:]]
+    edge_n = max(2, len(x) // 5) 
+    ex = np.r_[x[:edge_n], x[-edge_n:]]#
     ey = np.r_[y[:edge_n], y[-edge_n:]]
     m, b = np.polyfit(ex, ey, 1)
     resid = np.convolve(y - (m * x + b), np.ones(5) / 5, mode="same")
 
-    if n == 1:
-        return [x[np.argmax(resid)]]
+    if n == 1: #if single peak
+        return [x[np.argmax(resid)]] 
 
     found, _ = find_peaks(resid)
-    if len(found) >= n:                                   # take the n tallest
+    if len(found) >= n:     # take the n tallest
         best = found[np.argsort(resid[found])[::-1][:n]]
         return sorted(x[best])
     # blended peaks (one shows up as a shoulder): spread the guesses evenly
@@ -106,17 +107,18 @@ def _fmt(value, err):
 class Spectrum:
 
     def __init__(self, filename, counts, channels, live_time, background=None):
-        self.filename = str(filename)
-        self.counts = np.asarray(counts, dtype=float)
-        self.channels = np.asarray(channels, dtype=float)
-        self.live_time = float(live_time)
-        self.background = background
+        self.filename = str(filename) #store source file name
+        self.counts = np.asarray(counts, dtype=float) #store counts in NumPy array
+        self.channels = np.asarray(channels, dtype=float) #store channels in Numpy array
+        self.live_time = float(live_time) #time the detector was live
+        self.background = background #background noise 
 
-        if len(self.counts) != len(self.channels):
+        # Validation of data
+        if len(self.counts) != len(self.channels): #make sure the counts and channels are the same length
             raise ValueError("Counts and channels must have equal lengths.")
-        if self.live_time <= 0:
+        if self.live_time <= 0: # if time is lower or equal to 0 something is wrong
             raise ValueError("Live time must be positive.")
-        if background is not None and len(background.counts) != len(self.counts):
+        if background is not None and len(background.counts) != len(self.counts): #background counts must match source channels
             raise ValueError("Sample and background have different numbers of channels.")
 
         self.fits = []        # every window fit made with pick_peaks()
@@ -125,11 +127,11 @@ class Spectrum:
     # ------------------------------------------------------------------
     # loading
     # ------------------------------------------------------------------
-    @classmethod
+    @classmethod 
     def from_file(cls, filename, background_file=None):
-        path = _resolve_path(filename)
-        suffix = path.suffix.lower()
-        if suffix == ".spe":
+        path = _resolve_path(filename) #obtain path to file
+        suffix = path.suffix.lower()#check file extension (not all data is saved the same way)
+        if suffix == ".spe": 
             counts, channels, live_time = read_spe(path)
         elif suffix == ".mca":
             counts, channels, live_time = read_mca(path)
@@ -143,30 +145,30 @@ class Spectrum:
     # count rates (background-subtracted automatically if a background exists)
     # ------------------------------------------------------------------
     def cps(self):
-        return self.counts / self.live_time
+        return self.counts / self.live_time #calculate counts per second
 
     def rate(self):
         """Counts/s, minus the background counts/s if there is a background."""
         if self.background is None:
-            return self.cps()
-        return self.cps() - self.background.cps()
+            return self.cps() #calculate counts per second for background
+        return self.cps() - self.background.cps() #substract background to raw data
 
-    def rate_err(self):
+    def rate_err(self): #calculate the uncertainty of the count rate
         """Poisson uncertainty on rate() in counts/s."""
         var = self.counts / self.live_time ** 2
         if self.background is not None:
             var = var + self.background.counts / self.background.live_time ** 2
-        return np.sqrt(var)
+        return np.sqrt(var) #return absolute error
 
     # ------------------------------------------------------------------
     def summary(self):
         bg = self.background.filename if self.background is not None else "None"
         print(f"File: {self.filename} | live time {self.live_time:.1f} s | "
-              f"{len(self.channels)} channels | background: {bg}")
+              f"{len(self.channels)} channels | background: {bg}") #print filename, live time, number of channles, background filename (or none if not)
 
     def plot(self):
         plt.figure(figsize=(10, 5))
-        plt.plot(self.channels, self.rate(), "k", lw=0.8)
+        plt.plot(self.channels, self.rate(), "k", lw=0.8) #plot channels vs count rate (counts per second)
         plt.xlabel("Channel")
         plt.ylabel("Counts per second" + (" (background subtracted)" if self.background else ""))
         plt.title(self.filename)
@@ -187,28 +189,33 @@ class Spectrum:
         mu, mu_err, fwhm, fwhm_err, area, area_err), "chi2_red", "params", "cov".
         """
         low, high = float(low), float(high)
-        if high <= low:
+        if high <= low: #check that the high value of the channel is not lower than the lower
             raise ValueError("high must be larger than low")
 
+        #mask the values inside the low and high channels
         mask = (self.channels >= low) & (self.channels <= high)
-        x = self.channels[mask]
-        y = self.rate()[mask]
+        
+        x = self.channels[mask]#mask channels in this range
+        y = self.rate()[mask] #mask count rate in this range
         # floor of one count so empty channels do not get zero error
         err = np.maximum(self.rate_err()[mask], 1.0 / self.live_time)
 
-        n_par = 3 * n_peaks + 2
+        n_par = 3 * n_peaks + 2 #each Gaussian peak needs 3 parameters and 2 linear parameters
         if len(x) <= n_par + 2:
             raise ValueError(f"Window {low:.0f}-{high:.0f} is too small for {n_peaks} peak(s).")
 
         if guesses is None:
-            guesses = _guess_centres(x, y, n_peaks)
+            guesses = _guess_centres(x, y, n_peaks) #find the best possible guess for peak
         elif len(guesses) != n_peaks:
             raise ValueError("Need one guess per peak.")
 
         # starting values
         edge_n = max(2, len(x) // 5)
+        #fit a straight line
         m0, b0 = np.polyfit(np.r_[x[:edge_n], x[-edge_n:]], np.r_[y[:edge_n], y[-edge_n:]], 1)
+        #initial guess for the peak width (standard deviaiton)
         sigma0 = (high - low) / (5 * n_peaks)
+        #spacing between channels
         spacing = np.median(np.diff(x))
 
         p0, lower, upper = [], [], []
@@ -231,9 +238,11 @@ class Spectrum:
 
         peaks = []
         for i in range(n_peaks):
+            #extract amplitude, centroid position and sigma
             A, mu, sigma = popt[3 * i:3 * i + 3]
             eA, emu, esig = perr[3 * i:3 * i + 3]
-            peaks.append({"mu": mu, "mu_err": emu,
+            #store this parameters and error of parameters
+            peaks.append({"mu": mu, "mu_err": emu, #<= I WILL NEED FOR RESOLUTION (COMMENT TO BE DELETED VALERIA)
                           "sigma": sigma, "sigma_err": esig,
                           "fwhm": FWHM_FACTOR * sigma, "fwhm_err": FWHM_FACTOR * esig,
                           "area": A, "area_err": eA,
@@ -345,18 +354,18 @@ class Spectrum:
     # ------------------------------------------------------------------
     def _suggested_energies(self, n_peaks):
         tokens = Path(self.filename).stem.split("_")
-        for key, lines in KNOWN_LINES.items():
-            if key in tokens and len(lines) == n_peaks:
+        for key, lines in KNOWN_LINES.items(): #check if matches the known_line name
+            if key in tokens and len(lines) == n_peaks: #ensure the number of gamma lines match number of fitted peaks
                 return lines
         return None
 
     def _ask_energies(self, peaks):
-        defaults = self._suggested_energies(len(peaks))
+        defaults = self._suggested_energies(len(peaks)) #if not known add it
         print("\nGive the known energy of each fitted peak (lowest channel first).")
         for i, pk in enumerate(peaks):
             default = defaults[i] if defaults else None
             prompt = f"  Peak at channel {pk['mu']:.1f} +/- {pk['mu_err']:.1f} -> energy in keV"
-            prompt += f" [Enter = {default}]" if default is not None else ""
+            prompt += f" [Enter = {default}]" if default is not None else "" #enter accepts default
             prompt += ", x = don't use: "
             while True:
                 try:
@@ -490,30 +499,60 @@ class Calibration:
         plot_calibration(self.channels, self.channel_errs, self.energies, self.fit, title)
 
 
+DETECTORS = {
+    "BGO": ("BGO_Background_180s.Spe", {
+        "Cs": "BGO_Cs_0_10cm_180s.Spe",
+        "Co": "BGO_Co_0_10cm_420s.Spe",
+        "Ba": "BGO_Ba_0_10cm_300s.Spe",
+        "Am": "BGO_Am_0_10cm_180s.Spe",
+    }),
+    "CdTe": ("CdTe_Background_180s.mca", {
+        "Cs": "CdTe_Cs_10cm_180s.mca",
+        "Co": "CdTe_Co_0_10cm_420s.mca",
+        "Ba": "CdTe_Ba_0_10cm_300s.mca",
+        "Am": "CdTe_Am_0_10cm_180s.mca",
+    }),
+    "NaI": ("Nal_Background_180s.Spe", {
+        "Cs": "NaI_Cs_0_10cm_180s.Spe",
+        "Co": "NaI_Co_0_10cm_420s.Spe",
+        "Ba": "NaI_Ba_0_10cm_300s.Spe",
+        "Am": "NaI_Am_0_10cm_180s.Spe",
+    }),
+}
+
+WINDOWS = {}
+
+def calibrate_detector(name, background, files):
+    """Load every source for ONE detector and build its own calibration."""
+    spectra = {src: Spectrum.from_file(f, background) for src, f in files.items()}
+    for s in spectra.values():
+        s.summary()
+ 
+    preset = WINDOWS.get(name)
+    if preset:
+        for src, s in spectra.items():
+            if src in preset:
+                s.pick_peaks(preset[src])
+        cal = Calibration(list(spectra.values()))
+    else:
+        first, *rest = spectra.values()
+        cal = first.calibrate(*rest)  # interactive: a plot opens for each spectrum
+ 
+    cal.plot(f"{name} calibration")
+    return spectra, cal
 # ===========================================================================
 def main():
-    background = "BGO_Background_180s.Spe"
-
-    cs = Spectrum.from_file("BGO_Cs_0_10cm_180s.Spe", background)
-    co = Spectrum.from_file("BGO_Co_0_10cm_420s.Spe", background)
-    ba = Spectrum.from_file("BGO_Ba_0_10cm_300s.Spe", background)
-    for s in (cs, co, ba):
-        s.summary()
-
-    # Interactive: a plot opens for each spectrum. Drag a window around a peak
-    # (press 2 first for a window with two peaks), press Enter when done, then type
-    # (or Enter-accept) the energies in the terminal.
-    cal = cs.calibrate(co, ba)
-    cal.plot("BGO calibration")
-
-    # Same thing without any plots (windows and energies given by you):
-    # cs.pick_peaks([(260, 360, [661.657])])
-    # co.pick_peaks([(506, 693, [1173.228, 1332.492])])
-    # ba.pick_peaks([(115, 200, [302.8508, 356.0129])])
-    # cal = Calibration([cs, co, ba])
-
-    # use it:  energy of a peak at channel 280 +/- 0.4
+    
+    results = {}
+    for name, (background, files) in DETECTORS.items():
+        print(f"\n######## {name} ########")
+        results[name] = calibrate_detector(name, background, files)
+ 
+    # use one:  energy of channel 280 +/- 0.4 on the first detector
+    spectra, cal = results["BGO"]
     print(cal.energy(280, 0.4))
+ 
+    return results
 
 
 if __name__ == "__main__":
