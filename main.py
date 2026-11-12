@@ -39,6 +39,9 @@ Detectors = {
     }
 }
 
+
+#A dictionary Of COunts
+#
 # Reference photon energies in keV, as specified by your original main.py.
 # Select exactly the corresponding photopeaks in each interactive fit.
 Known_Energies = {
@@ -76,11 +79,11 @@ def main():
     #     detector.calibrate()
 
     bgo = make_detector("BGO")
-
+    
     bgo.calibrate()
 
     bgo.calculate_resolution()
-
+  
 
 if __name__ == "__main__":
     main()
