@@ -74,6 +74,18 @@ EMISSION_FRACTIONS = {
     "Co": {
         1173.228: 0.9985,
         1332.492: 0.999826
+    },
+    "Ba": {
+        356.0129: 0.6205,
+        80.9979: 0.329,
+        302.8508: 0.1834
+        },
+    "Cs":{
+        661.657:0.8499,
+    },
+    "Am":{
+        59.5409: 0.3578,
+        26.3446: 0.024
     }
 
 }
@@ -352,7 +364,7 @@ def absolute_efficiency(detector, source=None):
         absolute_efficiency
         efficiency_error
     """
-
+    results = {}
     if detector.calibration is None:
         raise ValueError(
             "Calibrate the detector before calculating efficiency."
@@ -366,132 +378,99 @@ def absolute_efficiency(detector, source=None):
     # --------------------------------------------------------
     # Select source
     # --------------------------------------------------------
+    for source, spectrum in detector.spectra.items():
 
-    available_sources = list(dict.fromkeys(
-        peak["isotope"]
-        for peak in detector.calibration_peak_records
-    ))
+            if source not in SOURCE_PARAMETERS:
+                print(f"\nSkipping unknown source: {source}")
+                continue
 
-    if source is None:
+            # Retrieve peaks belonging to this source.
+            peaks = [
+                peak for peak in detector.calibration_peak_records
+                if peak["isotope"] == source
+            ]
 
-        print("\nAvailable radioactive sources:")
+            if not peaks:
+                print(f"\nNo fitted peaks available for {source}.")
+                continue
 
-        for i, name in enumerate(available_sources, 1):
-            print(f"{i}. {name}")
+            # Obtain measurement date and remaining activity.
+            measurement_date = extract_measurement_date(
+                spectrum.filename
+            )
 
-        while True:
+            activity_bq = source_activity(
+                measurement_date,
+                source
+            )
 
-            answer = input(
-                "\nSelect source number: "
-            ).strip()
+            activity_error = (
+                activity_bq *
+                SOURCE_PARAMETERS[source]["accuracy"] / 100
+            )
 
-            try:
-                choice = int(answer)
+            results[source] = []
 
-                if 1 <= choice <= len(available_sources):
-                    source = available_sources[choice - 1]
-                    break
+            print(f"\nSource: {source}")
+            print(f"Measurement date: {measurement_date}")
+            print(f"Activity: {activity_bq:.3f} +/- {activity_error:.3f} Bq")
 
-                print("Invalid selection.")
+            # Calculate efficiency for every fitted peak.
+            for peak in peaks:
 
-            except ValueError:
-                print("Please enter a number.")
+                energy = peak["energy"]
+                count_rate = peak["area"]
+                count_rate_error = peak["area_error"]
 
-    elif source not in available_sources:
+                emission_fraction = get_emission_fraction(
+                    source,
+                    energy
+                )
 
-        raise ValueError(
-            f"No fitted peaks available for {source}."
-        )
+                absolute_efficiency = (
+                    count_rate /
+                    (activity_bq * emission_fraction)
+                )
 
-    # --------------------------------------------------------
-    # Select fitted peak
-    # --------------------------------------------------------
+                # Propagate peak-area and source-activity uncertainties.
+                relative_variance = (
+                    (count_rate_error / count_rate) ** 2
+                    + (activity_error / activity_bq) ** 2
+                ) if count_rate != 0 else np.nan
 
-    peak = select_peak(detector, source)
+                efficiency_error = (
+                    absolute_efficiency * np.sqrt(relative_variance)
+                )
 
-    energy = peak["energy"]
+                result = {
+                    "source": source,
+                    "energy": energy,
+                    "count_rate": count_rate,
+                    "count_rate_error": count_rate_error,
+                    "activity_bq": activity_bq,
+                    "activity_error": activity_error,
+                    "emission_fraction": emission_fraction,
+                    "absolute_efficiency": absolute_efficiency,
+                    "efficiency_error": efficiency_error,
+                }
 
-    count_rate = peak["area"]
-    count_rate_error = peak["area_error"]
+                results[source].append(result)
 
-    # --------------------------------------------------------
-    # Determine measurement date and source activity
-    # --------------------------------------------------------
+                print(
+                    f"\n  Energy: {energy:.3f} keV"
+                    f"\n  Count rate: {count_rate:.4f} +/- "
+                    f"{count_rate_error:.4f} CPS"
+                    f"\n  Emission fraction: {emission_fraction:.6f}"
+                    f"\n  Absolute efficiency: "
+                    f"{absolute_efficiency:.6e} +/- "
+                    f"{efficiency_error:.2e}"
+                )
 
-    spectrum_filename = next(
-        spectrum.filename
-        for isotope, spectrum in detector.spectra.items()
-        if isotope == source
-    )
+        # Store results directly in the Detector object.
+    detector.efficiency = results
 
-    # Spectrum.filename may only contain the basename.
-    # Look in the CUITS folder if it is not in the current directory.
+    print("\n" + "=" * 65)
+    print("EFFICIENCY CALCULATION COMPLETE")
+    print("=" * 65)
 
-    path = Path(spectrum_filename)
-
-    if not path.exists():
-        path = Path(__file__).parent / "CUITS" / spectrum_filename
-
-    measurement_date = extract_measurement_date(path)
-
-    activity_bq = source_activity(
-        measurement_date,
-        source
-    )
-
-    # --------------------------------------------------------
-    # Obtain emission fraction
-    # --------------------------------------------------------
-
-    emission_fraction = get_emission_fraction(
-        source,
-        energy
-    )
-
-    # --------------------------------------------------------
-    # Calculate absolute efficiency
-    # --------------------------------------------------------
-
-    denominator = activity_bq * emission_fraction
-
-    efficiency = count_rate / denominator
-
-    # Propagate the peak-area uncertainty.
-    efficiency_error = count_rate_error / denominator
-
-    # --------------------------------------------------------
-    # Display results
-    # --------------------------------------------------------
-
-    print("\n" + "=" * 60)
-    print(f"{detector.name} ABSOLUTE EFFICIENCY")
-    print("=" * 60)
-
-    print(f"Source:              {source}")
-    print(f"Gamma energy:        {energy:.3f} keV")
-
-    print(
-        f"Count rate:          "
-        f"{count_rate:.4f} +/- {count_rate_error:.4f} CPS"
-    )
-
-    print(f"Source activity:     {activity_bq:.3f} Bq")
-    print(f"Emission fraction:   {emission_fraction:.6f}")
-
-    print(
-        f"Absolute efficiency: "
-        f"{efficiency:.6e} +/- {efficiency_error:.6e}"
-    )
-
-    print("=" * 60)
-
-    return {
-        "source": source,
-        "energy": energy,
-        "count_rate": count_rate,
-        "count_rate_error": count_rate_error,
-        "activity_bq": activity_bq,
-        "emission_fraction": emission_fraction,
-        "absolute_efficiency": efficiency,
-        "efficiency_error": efficiency_error
-    }
+    return results
