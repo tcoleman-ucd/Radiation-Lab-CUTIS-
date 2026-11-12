@@ -543,30 +543,6 @@ def calibrate_and_resolution_detector(name, background, files):
     return spectra, cal, res
 # ===========================================================================
 def main():
-<<<<<<< HEAD
-    background = "BGO_Background_180s.Spe"
-
-    cs = Spectrum.from_file("BGO_Cs_0_10cm_180s.Spe", background)
-    co = Spectrum.from_file("BGO_Co_0_10cm_420s.Spe", background)
-    ba = Spectrum.from_file("BGO_Ba_0_10cm_300s.Spe", background)
-    am = Spectrum.from_file("BGO_Am_0_10cm_180s.Spe", background)
-    for s in (cs, co, ba, am):
-        s.summary()
-
-    # Interactive: a plot opens for each spectrum. Drag a window around a peak
-    # (press 2 first for a window with two peaks), press Enter when done, then type
-    # (or Enter-accept) the energies in the terminal.
-    cal = cs.calibrate(co, ba, am)
-    cal.plot("BGO calibration")
-
-    # Same thing without any plots (windows and energies given by you):
-    # cs.pick_peaks([(260, 360, [661.657])])
-    # co.pick_peaks([(506, 693, [1173.228, 1332.492])])
-    # ba.pick_peaks([(115, 200, [302.8508, 356.0129])])
-    # cal = Calibration([cs, co, ba])
-
-    # use it:  energy of a peak at channel 280 +/- 0.4
-=======
     
     results = {}
     for name, (background, files) in DETECTORS.items():
@@ -575,7 +551,6 @@ def main():
  
     # use one:  energy of channel 280 +/- 0.4 on the first detector
     spectra, cal, res  = results["BGO"]
->>>>>>> caecd0cca8ea0ed88195a286712b73aec882333e
     print(cal.energy(280, 0.4))
  
     return results
