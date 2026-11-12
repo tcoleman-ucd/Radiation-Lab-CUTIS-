@@ -23,7 +23,7 @@ Usage:
 
 from pathlib import Path
 from datetime import datetime
-
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -474,3 +474,89 @@ def absolute_efficiency(detector, source=None):
     print("=" * 65)
 
     return results
+
+def intrinsic_eff(asb_effic, filename):   
+    #WHatever the intrinisic effeciencie ends up being you can append it to the result in absolute effciency
+    '''
+    Function that calculates the intrinsic efficiency of the detector.
+    This is done by determining and applying a geometry factor which 
+    itself is dependant on the detectors radius and distance from 
+    the radio isotope source.
+    __________________
+    Parameters
+        dist: Float
+        The distance the detector is from the radioisotope
+
+        radius: Float
+        radius of the detector
+
+        abs_effic: Float
+        absolute efficiency of the detector
+    ___________________
+    Outputs
+        intrinsic_efficiency: Float
+        intrinsic efficiency of the detector
+    
+    '''
+    pass
+    # #get detector from file name
+    # detector = str(filename).split('_')[0]
+
+    # # radius list of detectors
+    # dist = 0.1 # meters
+    # rad_list =  {
+    #     "BGO": #radius of bgo detector,
+    #     "NaI": #radius of nai detector,
+    #     "CdTe": #radius of bcdte detector
+    # }
+
+    # radius = rad_list[detector]
+
+    # #geometry factor
+    # G = 0.5 * (1 - (dist / (sqrt((dist**2)+(radius**2))))) 
+    # intrinsic_efficiency = abs_effic / G
+    
+    # return intrinsic_efficiency
+
+
+
+def plot_absolute_efficiency(detector):
+    """
+    Plot absolute efficiency against gamma-ray energy
+    for all sources belonging to a detector.
+    """
+
+    if detector.efficiency is None:
+        raise ValueError("Calculate efficiency first.")
+
+    plt.figure(figsize=(8, 5))
+
+    for source, peaks in detector.efficiency.items():
+
+        if not peaks:
+            continue
+
+        energies = [p["energy"] for p in peaks]
+        efficiencies = [
+            p["absolute_efficiency"] for p in peaks
+        ]
+        errors = [
+            p["efficiency_error"] for p in peaks
+        ]
+
+        plt.errorbar(
+            energies,
+            efficiencies,
+            yerr=errors,
+            fmt="o",
+            capsize=4,
+            label=source
+        )
+
+    plt.xlabel("Gamma-ray Energy (keV)")
+    plt.ylabel("Absolute Efficiency")
+    plt.title(f"{detector.name} Absolute Efficiency")
+    plt.grid(alpha=0.3)
+    plt.legend(title="Source")
+    plt.tight_layout()
+    plt.show()
