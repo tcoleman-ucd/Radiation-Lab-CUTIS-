@@ -4,6 +4,9 @@ from pathlib import Path
 
 from spectra import Spectrum
 from detector import Detector
+from Efficiency import absolute_efficiency, plot_absolute_efficiency
+
+
 
 
 
@@ -83,7 +86,9 @@ def main():
     bgo.calibrate()
 
     bgo.calculate_resolution()
-  
+    
+    absolute_efficiency(bgo)
+    plot_absolute_efficiency(bgo)
 
 if __name__ == "__main__":
     main()
