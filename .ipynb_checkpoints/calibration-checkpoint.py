@@ -1,5 +1,9 @@
 """
+<<<<<<< Updated upstream
 calibration.py  (simple version, complete)
+=======
+calibration.py  
+>>>>>>> Stashed changes
 
 Turns channels into energy.
 
@@ -14,6 +18,19 @@ How it works:
   5. channel_to_energy() converts any channel to an energy WITH its uncertainty.
 
 Do this once per detector (BGO, NaI, ...): only list files from that detector.
+<<<<<<< Updated upstream
+=======
+
+THOMAS YOU ARE DOING THE CALIBRATION FOR THE OTHER DETECTOR AND POSSIBLY AUTOMATING FINDING THE PEAKS THE REGION OF THE PEAK
+
+
+VALERIA IS DOING THE RESOLUTION/UNDERSTAND WHATEVER THAT MEANS
+
+
+CODY IMPLEMNET THE .MCA AND MACTH
+
+ME AND CODY CAN TAKE A LOOK AT THE EFFICIENCIES
+>>>>>>> Stashed changes
 """
 
 import numpy as np
@@ -28,10 +45,18 @@ from gaussian import fit_peak
 #   (filename, low, high, [guess channels], [energies in keV, SAME ORDER as the guesses])
 #   Energies are from Table 2:  Cs 661.657 | Co 1173.228, 1332.492 | Ba 356.0129, 302.8508
 # ---------------------------------------------------------------------------
+<<<<<<< Updated upstream
 calibration_peaks = [
     ("BGO_Cs_0_10cm_180s.Spe", 260, 360, [280], [661.657]),
     ("BGO_Co_0_10cm_420s.Spe", 506, 693, [547, 632], [1173.228, 1332.492]),
     ("BGO_Ba_0_10cm_300s.Spe", 115, 200, [143, 167], [302.8508, 356.0129]),
+=======
+Background =  "BGO_Background_180s.Spe"
+calibration_peaks = [
+    (Background, "BGO_Cs_0_10cm_180s.Spe", 260, 360, [280], [661.657]),
+    (Background, "BGO_Co_0_10cm_420s.Spe", 506, 693, [547, 632], [1173.228, 1332.492]),
+    (Background, "BGO_Ba_0_10cm_300s.Spe", 115, 200, [143, 167], [302.8508, 356.0129]),
+>>>>>>> Stashed changes
 ]
 
 
@@ -40,11 +65,19 @@ calibration_peaks = [
 # ---------------------------------------------------------------------------
 def get_centroids(peak_list):
     channels, channel_errs, energies = [], [], []
+<<<<<<< Updated upstream
     for filename, low, high, guesses, peak_energies in peak_list:
         if len(guesses) != len(peak_energies):
             raise ValueError(f"{filename}: need one energy for each guessed peak")
 
         results = fit_peak(filename, low, high, guesses, show_plot=False)
+=======
+    for background, filename, low, high, guesses, peak_energies in peak_list:
+        if len(guesses) != len(peak_energies):
+            raise ValueError(f"{filename}: need one energy for each guessed peak")
+
+        results = fit_peak(background, filename, low, high, guesses, show_plot=False)
+>>>>>>> Stashed changes
         for result, energy in zip(results, peak_energies):
             if not np.isfinite(result["mu_err"]):      # the fit failed -> don't use this peak
                 print(f"WARNING: fit failed for {filename} (energy {energy} keV), skipping it. "
@@ -176,6 +209,9 @@ if __name__ == "__main__":
     channels, channel_errs, energies = get_centroids(calibration_peaks)
     cal = calibrate(channels, channel_errs, energies)
     plot_calibration(channels, channel_errs, energies, cal, "BGO calibration")
+<<<<<<< Updated upstream
 
     # example: energy of a peak at channel 280 +/- 0.4
     print(channel_to_energy(280, 0.4, cal))
+=======
+>>>>>>> Stashed changes
