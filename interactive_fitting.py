@@ -375,6 +375,7 @@ def interactive_fit(spectrum, corrected=True):
     if len(spectrum.peaks) == 0:
 
         print("No peaks fitted.")
+        print("This spectrum will be skipped during calibration")
 
     else:
 
