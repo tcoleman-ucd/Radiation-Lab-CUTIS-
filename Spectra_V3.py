@@ -497,13 +497,14 @@ def main():
     cs = Spectrum.from_file("BGO_Cs_0_10cm_180s.Spe", background)
     co = Spectrum.from_file("BGO_Co_0_10cm_420s.Spe", background)
     ba = Spectrum.from_file("BGO_Ba_0_10cm_300s.Spe", background)
-    for s in (cs, co, ba):
+    am = Spectrum.from_file("BGO_Am_0_10cm_180s.Spe", background)
+    for s in (cs, co, ba, am):
         s.summary()
 
     # Interactive: a plot opens for each spectrum. Drag a window around a peak
     # (press 2 first for a window with two peaks), press Enter when done, then type
     # (or Enter-accept) the energies in the terminal.
-    cal = cs.calibrate(co, ba)
+    cal = cs.calibrate(co, ba, am)
     cal.plot("BGO calibration")
 
     # Same thing without any plots (windows and energies given by you):
