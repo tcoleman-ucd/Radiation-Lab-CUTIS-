@@ -3,6 +3,7 @@
 
 from fitting import interactive_fit
 
+
 from calibration import (
     calibrate as fit_calibration,
     channel_to_energy as convert_channel,
@@ -263,7 +264,7 @@ class Detector:
 
         return convert_channel(
             channel,
-            self.calibration
+            self.calibration  
         )
 
     def energy_to_channel(self, energy):
