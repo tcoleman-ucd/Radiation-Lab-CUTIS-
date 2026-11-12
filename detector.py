@@ -83,7 +83,11 @@ class Detector:
             )
 
             sorted_energies = sorted(energies)
+            
+            print(sorted_energies)
 
+
+        
             for peak, energy in zip(sorted_peaks, sorted_energies):
 
                 all_peaks.append(peak)
@@ -108,6 +112,8 @@ class Detector:
         )
 
         self.calibration_peaks = all_peaks
+
+        #Maybe return this
         self.calibration_energies = all_energies
         self.calibration_peak_records = peak_records
 
