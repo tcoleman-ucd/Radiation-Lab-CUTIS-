@@ -5,7 +5,7 @@ from pathlib import Path
 from spectra import Spectrum
 from detector import Detector
 from Efficiency import absolute_efficiency, plot_absolute_efficiency
-
+from Offaxis  import load_off_axis, fit_all_angles
 
 
 
@@ -42,6 +42,17 @@ Detectors = {
     }
 }
 
+measurements = {
+    "BGO": {
+        "background": "BGO_Background_180s.Spe",
+        "sources": {"Cs":{
+    0:  "BGO_Cs_0_10cm_180s.Spe",
+    45: "BGO_Cs_45(1)_10cm_180s.Spe",
+    90: "BGO_Cs_90(1)_10cm_180s.Spe"}
+    }}
+
+}
+
 
 #A dictionary Of COunts
 #
@@ -75,6 +86,26 @@ def make_detector(name):
 
     return Detector(name, spectra, Known_Energies)
 
+def make_detector_for_Offaxis(name, source):
+
+    background_filename = measurements[name]["background"]
+    files = measurements[name][source]["sources"]
+
+    background_path = next(Path(".").rglob(background_filename))
+
+    spectra = {}
+
+    for deg, filename in files.items():
+
+        file_path = next(Path(".").rglob(filename))
+
+        spectra[deg] = Spectrum.from_file(
+            file_path,
+            background_file=background_path
+        )
+
+    return Detector(name, spectra, Known_Energies)
+
 
 def main():
     # for name in ["BGO", "NaI", "CdTe"]:
@@ -89,6 +120,17 @@ def main():
     
     absolute_efficiency(bgo)
     plot_absolute_efficiency(bgo)
+    spectra = load_off_axis(background, measurements)
+    results = fit_all_angles(spectra, reuse_roi=REUSE_ROI)
+
+    angles, rel_eff, rel_eff_err, rel_res, rel_res_err, mu = analyse(results)
+
+    print("\nAngle  RelEff   +/-      Centroid")
+    for a, e, de, m in zip(angles, rel_eff, rel_eff_err, mu):
+        print(f"{a:5.0f}  {e:6.3f}  {de:6.3f}  {m:8.2f}")
+
+    plot_results(angles, rel_eff, rel_eff_err, rel_res, rel_res_err)
+
 
 if __name__ == "__main__":
     main()
