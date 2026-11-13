@@ -208,7 +208,7 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
         fwhm = 2.355 * sigma
         fwhm_error = 2.355 * sigma_error
 
-        # Integrated Gaussian area, used later for detector efficiency
+        # Integrated Gaussian area, used later for detector efficiency and off-axis
         area = A * sigma * np.sqrt(2 * np.pi)
 
         # The area depends on two fitted parameters, A and sigma.
