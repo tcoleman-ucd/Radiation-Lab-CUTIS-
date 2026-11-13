@@ -43,10 +43,15 @@ FWHM_FACTOR = 2 * np.sqrt(2 * np.log(2)) # FWHM = 2.355 * sigma - fwhm factor
 # Known gamma lines (keV) from Table 2, used only to SUGGEST energies when you
 # are asked for them (matched on the source name in the file name: Cs / Co / Ba).
 KNOWN_LINES = {
+<<<<<<< Updated upstream
     "Cs": [emesiiojfr,661.657],
     
     "Co": [emission fraction 1, 1173.228,
            emission fraction 2 , 1332.492],
+=======
+    "Cs": [661.657],
+    "Co": [1173.228, 1332.492],
+>>>>>>> Stashed changes
     "Ba": [302.8508, 356.0129],
     "Am": [26.3446]
 }
