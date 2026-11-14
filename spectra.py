@@ -66,13 +66,15 @@ def read_mca(filename):
 class Spectrum:
 
     def __init__(
-        self,
-        filename,
-        counts,
-        channels,
-        live_time,
-        background=None
+            self,
+            filename,
+            counts,
+            channels,
+            live_time,
+            background=None,
+            distance=None
     ):
+
 
         self.filename = str(filename)
         self.counts = np.asarray(counts, dtype=float)
@@ -80,6 +82,7 @@ class Spectrum:
         self.live_time = float(live_time)
 
         self.background = background
+        self.distance = distance
 
         self.rois = []
         self.peaks = []
@@ -94,9 +97,8 @@ class Spectrum:
         # if np.any(np.diff(self.channels) <= 0):
         #     raise ValueError("Channels must be strictly increasing.")
 
-
     @classmethod
-    def from_file(cls, filename, background_file=None):
+    def from_file(cls, filename, background_file=None, distance=None):
 
         suffix = Path(filename).suffix.lower()
 
@@ -119,7 +121,8 @@ class Spectrum:
             counts=counts,
             channels=channels,
             live_time=live_time,
-            background=background
+            background=background,
+            distance=distance
         )
 
 

@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from fitting import fit_roi, gaussian
+### We should also consider FWHM and peak height as functions of angle. - THomas
 
 
 def get_rois(detector, source):
@@ -136,11 +137,11 @@ def plot_comparison(all_r):
     plt.show()
 
 
-def run_off_axis(detector, spectra, source):
-    """spectra: {angle: Spectrum} with background attached.
+def run_off_axis(detector, source):
+    """Analyse the off-axis response for one radioactive source."""
 
-    Returns {energy_keV: result dict} for every calibration peak of the source.
-    """
+    spectra = detector.off_axis_spectra[source]
+
     out = {}
     for job in get_rois(detector, source):
         fits = fit_all_angles(spectra, job)

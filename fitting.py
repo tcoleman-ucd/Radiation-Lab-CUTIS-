@@ -4,6 +4,10 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 
+# True: identify energies in the original plot. False: identify in the terminal.
+IDENTIFY_IN_PLOT = True
+
+
 def continuum(x, a, b, c, d):
     """Third-order polynomial continuum, as in the previous assignment."""
     return a * x**3 + b * x**2 + c * x + d
@@ -208,7 +212,7 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
         fwhm = 2.355 * sigma
         fwhm_error = 2.355 * sigma_error
 
-        # Integrated Gaussian area, used later for detector efficiency and off-axis
+        # Integrated Gaussian area, used later for detector efficiency
         area = A * sigma * np.sqrt(2 * np.pi)
 
         # The area depends on two fitted parameters, A and sigma.
@@ -263,7 +267,16 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
     return result
 
 
-def interactive_fit(spectrum, corrected=True):
-    """Open the ROI selection interface from its separate module."""
+def interactive_fit(spectrum, corrected=True, known_energies=None,
+                    identify_in_plot=None):
+    """Open the original ROI selector, optionally identifying peaks in the plot."""
     from interactive_fitting import interactive_fit as run_interactive_fit
-    return run_interactive_fit(spectrum, corrected=corrected)
+
+    if identify_in_plot is None:
+        identify_in_plot = IDENTIFY_IN_PLOT
+
+    return run_interactive_fit(
+        spectrum,
+        corrected=corrected,
+        known_energies=known_energies if identify_in_plot else None,
+    )

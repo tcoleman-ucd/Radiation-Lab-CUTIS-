@@ -1,9 +1,6 @@
-
 """Organise the measurements, calibration and resolution of one detector."""
 
-from fitting import interactive_fit
-
-
+import fitting
 from calibration import (
     calibrate as fit_calibration,
     channel_to_energy as convert_channel,
@@ -14,18 +11,18 @@ from calibration import (
 
 class Detector:
 
-    def __init__(self, name, spectra, known_energies):
-        """Store source spectra and suggested photopeak energies (keV)."""
-
+    def __init__(self, name, spectra, known_energies, radius, off_axis_spectra=None):
+        """Store source spectra and known photopeak energies (in keV)."""
         self.name = name
+        self.radius = radius
         self.spectra = dict(spectra)
+        self.off_axis_spectra = (off_axis_spectra if off_axis_spectra is not None else {})
 
         self.known_energies = {
             source: list(energies)
             for source, energies in known_energies.items()
         }
 
-        # Background remains attached to its respective measurement.
         self.backgrounds = {
             source: spectrum.background
             for source, spectrum in self.spectra.items()
@@ -35,278 +32,221 @@ class Detector:
         self.calibration_peaks = []
         self.calibration_energies = []
         self.calibration_peak_records = []
-
+        self.unidentified_peaks = []
         self.resolution = None
         self.efficiency = None
+        self.off_axis_results = {}
 
-    # ---------------------------------------------------------
-    # USER INPUT
-    # ---------------------------------------------------------
-
-    def _include_spectrum(self, source):
-        """Ask whether the user wants to analyse this spectrum."""
-
-        while True:
-            answer = input(
-                f"\nAnalyse {source} spectrum? [Y/n]: "
-            ).strip().lower()
-
-            if answer in ("", "y", "yes"):
-                return True
-
-            if answer in ("n", "no"):
-                print(f"Skipping {source}.")
-                return False
-
-            print("Please enter y or n.")
-
-    def _ask_peak_energies(self, source, peaks):
+    def calibrate(self, corrected=True, show_plot=True, identification=None):
         """
-        Ask the user to assign an energy to every fitted peak.
+        Calibrate using manually identified photopeaks.
 
-        Known energies are suggestions only.
-        Pressing Enter accepts a suggested energy.
+        By default, use IDENTIFY_IN_PLOT from fitting.py.
+        identification='plot' or 'terminal' can override this setting.
+        ROIs are always selected by clicking and dragging.
         """
+        if identification is None:
+            identification = "plot" if fitting.IDENTIFY_IN_PLOT else "terminal"
 
-        suggested = self.known_energies.get(source, [])
-
-        print(f"\nAssign energies for {source}.")
-
-        if suggested:
-            print(f"Suggested energies (keV): {suggested}")
-
-        energies = []
-
-        for i, peak in enumerate(peaks):
-
-            default = (
-                suggested[i]
-                if i < len(suggested)
-                else None
-            )
-
-            print(
-                f"\nPeak {i + 1}: "
-                f"{peak['centroid']:.3f} +/- "
-                f"{peak['centroid_error']:.3f} channels"
-            )
-
-            if default is not None:
-                prompt = (
-                    f"Enter energy in keV "
-                    f"[{default}]: "
-                )
-            else:
-                prompt = "Enter energy in keV: "
-
-            while True:
-
-                answer = input(prompt).strip()
-
-                if answer == "" and default is not None:
-                    energy = float(default)
-                    break
-
-                try:
-                    energy = float(answer)
-
-                    if energy <= 0:
-                        print("Energy must be positive.")
-                        continue
-
-                    break
-
-                except ValueError:
-                    print("Please enter a valid energy in keV.")
-
-            energies.append(energy)
-
-        return energies
-
-    # ---------------------------------------------------------
-    # ENERGY CALIBRATION
-    # ---------------------------------------------------------
-
-    def calibrate(self, corrected=True, show_plot=True):
-        """Fit selected photopeaks and calibrate the detector."""
+        if identification not in ("plot", "terminal"):
+            raise ValueError("identification must be 'plot' or 'terminal'.")
 
         all_peaks = []
         all_energies = []
         peak_records = []
+        unidentified_peaks = []
 
-        # Reset previous calibration and resolution results.
         self.calibration = None
         self.calibration_peaks = []
         self.calibration_energies = []
         self.calibration_peak_records = []
+        self.unidentified_peaks = []
         self.resolution = None
 
         for source, spectrum in self.spectra.items():
+            if source not in self.known_energies:
+                raise ValueError(f"No known energies specified for {source}.")
 
-            print("\n" + "=" * 55)
-            print(f"{self.name}: {source}")
-            print("=" * 55)
+            energies = self.known_energies[source]
+            print(f"\n{self.name}: fitting {source}")
+            print("Drag to select any reliable photopeaks; Enter finishes this spectrum.")
 
-            # Allow the user to skip an entire spectrum.
-            if not self._include_spectrum(source):
-                continue
-
-            suggested = self.known_energies.get(source, [])
-
-            if suggested:
-                print(
-                    f"\nSuggested photopeak energies: {suggested} keV"
-                )
-
-            else:
-                print("\nNo suggested energies available.")
-
-            print("\nSelect the photopeaks in the spectrum.")
-            print("You can select as many ROIs as you need.")
-            print("Press 1 or 2 to choose the number of peaks per ROI.")
-            print("Press Enter when you have finished.")
-
-            # Interactive peak fitting.
-            peaks = interactive_fit(
+            peaks = fitting.interactive_fit(
                 spectrum,
-                corrected=corrected
+                corrected=corrected,
+                known_energies=energies,
+                identify_in_plot=(identification == "plot"),
             )
 
-            # Skip spectrum if no peaks were selected.
             if not peaks:
-                print(
-                    f"\nNo peaks selected for {source}. "
-                    "Skipping this spectrum."
-                )
+                print(f"No peaks selected for {source}. Skipping.")
                 continue
 
-            # Sort fitted peaks by increasing channel.
-            sorted_peaks = sorted(
-                peaks,
-                key=lambda peak: peak["centroid"]
-            )
+            if identification == "terminal":
+                used_energies = set()
+                # Suggestions follow the ordering of the reference energy list.
+                sorted_peaks = sorted(peaks, key=lambda peak: peak["centroid"])
+                for i, peak in enumerate(sorted_peaks):
+                    print(f"\nFitted peak at channel {peak['centroid']:.3f}")
+                    for index, reference_energy in enumerate(energies, 1):
+                        print(f"{index}: {reference_energy:.4f} keV")
+                    print("0: Unknown / skip")
 
-            print(
-                f"\n{len(sorted_peaks)} peak(s) fitted "
-                f"for {source}."
-            )
+                    # Suggest the reference energy in the corresponding position.
+                    # As before, only the user can verify that this is the right line.
+                    default = energies[i] if i < len(energies) else None
+                    if default in used_energies:
+                        default = None
 
-            # Ask the user to assign energies.
-            sorted_energies = self._ask_peak_energies(
-                source,
-                sorted_peaks
-            )
+                    if default is not None:
+                        prompt = (
+                            f"Select number, alternatively enter the energy in keV "
+                            f"[No Value Given = {default:.4f} keV]: "
+                        )
+                    else:
+                        prompt = "Select number, enter energy in keV: "
 
-            # Store the peaks and their assigned energies.
-            for peak, energy in zip(
-                sorted_peaks,
-                sorted_energies
-            ):
+                    while True:
+                        choice = input(prompt).strip()
+                        if choice == "0":
+                            energy = None
+                            break
 
-                all_peaks.append(peak)
-                all_energies.append(energy)
+                        if choice == "" and default is not None:
+                            energy = default
+                        elif choice.isdigit() and 1 <= int(choice) <= len(energies):
+                            energy = energies[int(choice) - 1]
+                        else:
+                            try:
+                                energy = float(choice)
+                            except ValueError:
+                                print("Enter a listed number, an energy in keV, or 0 to skip.")
+                                continue
 
-                peak_records.append({
+                            if not 0 < energy < float("inf"):
+                                print("Energy must be a finite positive number.")
+                                continue
+
+                        if energy in used_energies:
+                            print("This energy has already been assigned.")
+                            continue
+
+                        used_energies.add(energy)
+                        break
+
+                    peak["energy"] = energy
+                    peak["accepted"] = energy is not None
+
+            for peak in peaks:
+                energy = peak.get("energy") if peak.get("accepted") else None
+                record = {
                     **peak,
                     "source": spectrum.filename,
                     "isotope": source,
-                    "energy": energy
-                })
+                    "energy": energy,
+                    "accepted": energy is not None,
+                }
+                if energy is None:
+                    unidentified_peaks.append(record)
+                else:
+                    all_peaks.append(peak)
+                    all_energies.append(energy)
+                    peak_records.append(record)
 
-        # Check that enough peaks were selected overall.
-        if len(all_peaks) < 2:
-            raise ValueError(
-                "At least two calibration peaks are required. "
-                "Please analyse more spectra or select more peaks."
-            )
-
-        # Perform energy calibration.
-        self.calibration = fit_calibration(
-            all_peaks,
-            all_energies
-        )
-
+        # Preserve accepted and unidentified peaks even if no calibration is possible.
         self.calibration_peaks = all_peaks
         self.calibration_energies = all_energies
         self.calibration_peak_records = peak_records
+        self.unidentified_peaks = unidentified_peaks
 
-        print("\n" + "=" * 55)
-        print(f"{self.name} ENERGY CALIBRATION")
-        print("=" * 55)
+        if len(all_peaks) < 2 or len(set(all_energies)) < 2:
+            raise ValueError(
+                "At least two identified peaks at distinct energies "
+                "are required for a linear calibration."
+            )
 
-        print(
-            f"Number of calibration peaks: {len(all_peaks)}"
-        )
-
-        print(
-            f"Gradient = "
-            f"{self.calibration['gradient']:.6f} keV/channel"
-        )
-
-        print(
-            f"Intercept = "
-            f"{self.calibration['intercept']:.3f} keV"
-        )
+        self.calibration = fit_calibration(all_peaks, all_energies)
+        print(f"\n{self.name} energy calibration")
+        print(f"Gradient  = {self.calibration['gradient']:.6f} keV/channel")
+        print(f"Intercept = {self.calibration['intercept']:.3f} keV")
+        print(f"Accepted peaks: {len(all_peaks)}")
+        print(f"Unidentified peaks: {len(unidentified_peaks)}")
 
         if show_plot:
             draw_calibration(self.calibration)
-
         return self.calibration
 
-    # ---------------------------------------------------------
-    # ENERGY CONVERSION
-    # ---------------------------------------------------------
-
     def channel_to_energy(self, channel):
-
         if self.calibration is None:
             raise ValueError("Calibrate the detector first.")
-
-        return convert_channel(
-            channel,
-            self.calibration  
-        )
+        return convert_channel(channel, self.calibration)
 
     def energy_to_channel(self, energy):
-
         if self.calibration is None:
             raise ValueError("Calibrate the detector first.")
-
-        return convert_energy(
-            energy,
-            self.calibration
-        )
-
-    # ---------------------------------------------------------
-    # CALIBRATION PLOT
-    # ---------------------------------------------------------
+        return convert_energy(energy, self.calibration)
 
     def plot_calibration(self):
-
         if self.calibration is None:
             raise ValueError("Calibrate the detector first.")
-
         draw_calibration(self.calibration)
-
-    # ---------------------------------------------------------
-    # ENERGY RESOLUTION
-    # ---------------------------------------------------------
 
     def calculate_resolution(self, title=None, show=True):
         """Calculate and store the detector's energy resolution."""
+        if self.calibration is None:
+            raise ValueError("Calibrate the detector first.")
+        from Resolution import resolution as fit_resolution
+        if title is None:
+            title = f"{self.name} Resolution"
+        self.resolution = fit_resolution(self, title=title, show=show)
+        return self.resolution
+
+    def calculate_absolute_efficiency(self, plot=True):
+        from Efficiency import absolute_efficiency, plot_absolute_efficiency
+
+        self.efficiency = absolute_efficiency(self)
+
+        if plot:
+            plot_absolute_efficiency(self)
+
+        return self.efficiency
+
+    def calculate_intrinsic_efficiency(self, plot=True):
+        """Calculate and store the detector's intrinsic efficiency."""
+
+        if not self.efficiency:
+            raise ValueError(
+                "No absolute efficiency results stored. "
+                "Run calculate_absolute_efficiency() first."
+            )
+
+        from Efficiency import intrinsic_eff, plot_intrinsic_efficiency
+
+        self.efficiency = intrinsic_eff(self)
+
+        if plot:
+            plot_intrinsic_efficiency(self)
+
+        return self.efficiency
+
+    def calculate_off_axis(self, source, plot=True):
+        """Calculate, store and optionally plot the off-axis response."""
 
         if self.calibration is None:
             raise ValueError("Calibrate the detector first.")
 
-        from Resolution import resolution as fit_resolution
+        from Offaxis import run_off_axis, plot_comparison
 
-        if title is None:
-            title = f"{self.name} Resolution"
+        results = run_off_axis(self, source)
 
-        self.resolution = fit_resolution(
-            self,
-            title=title,
-            show=show
-        )
+        self.off_axis_results[source] = results
 
-        return self.resolution
+        if plot:
+            plot_comparison({
+                (self.name, source, energy): result
+                for energy, result in results.items()
+            })
+
+        return results
+
+
