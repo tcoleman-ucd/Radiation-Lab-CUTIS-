@@ -88,7 +88,7 @@ def resolution(detector, title="Resolution", show=True):
     plt.xscale("log")
     plt.yscale("log")
     plt.xticks([10, 20, 50, 100, 200, 500, 1000, 2000], ["10", "20", "50", "100", "200", "500", "1000", "2000"])
-    plt.yticks([1, 2, 5, 10, 20, 50, 60, 70, 80, 90, 100], ["1", "2", "5", "10", "20", "50", "60", "70", "80", "90", "100"])
+    plt.yticks([1, 2, 5, 10, 20, 50, 60], ["1", "2", "5", "10", "20", "50", "60"])
     plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E (%)")
     plt.title(title)
     plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
