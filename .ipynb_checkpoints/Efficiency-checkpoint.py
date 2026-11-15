@@ -76,15 +76,20 @@ EMISSION_FRACTIONS = {
         1332.492: 0.999826
     },
     "Ba": {
-        356.0129: 0.6205,
+        53.1622: 0.0214,
+        79.6142: 0.0265,
         80.9979: 0.329,
-        302.8508: 0.1834
+        276.3989: 0.0719,
+        302.8508: 0.1834,
+        356.0129: 0.6205,
+        383.8485: 0.0894
         },
     "Cs":{
         661.657:0.8499,
     },
     "Am":{
         59.5409: 0.3578,
+        33.1936: 0.00121,
         26.3446: 0.024
     }
 
@@ -475,9 +480,9 @@ def absolute_efficiency(detector, source=None):
 
     return results
 
-def intrinsic_eff(asb_effic, filename):   
-    #WHatever the intrinisic effeciencie ends up being you can append it to the result in absolute effciency
-    '''
+def intrinsic_efficiency(detector, dist=0.1):   
+    #Whatever the intrinisic effeciencie ends up being you can append it to the result in absolute effciency
+    """
     Function that calculates the intrinsic efficiency of the detector.
     This is done by determining and applying a geometry factor which 
     itself is dependant on the detectors radius and distance from 
@@ -496,29 +501,97 @@ def intrinsic_eff(asb_effic, filename):
     Outputs
         intrinsic_efficiency: Float
         intrinsic efficiency of the detector
-    
-    '''
-    pass
-    # #get detector from file name
-    # detector = str(filename).split('_')[0]
+    """
+    rad_list = {
+        "BGO": 0.0254,
+        "NaI": 0.02921,
+        "CdTe": 0.005,
+    }
 
-    # # radius list of detectors
-    # dist = 0.1 # meters
-    # rad_list =  {
-    #     "BGO": #radius of bgo detector,
-    #     "NaI": #radius of nai detector,
-    #     "CdTe": #radius of bcdte detector
-    # }
+    intrinsic_results = {}
 
-    # radius = rad_list[detector]
+    radius = rad_list[detector.name]
 
-    # #geometry factor
-    # G = 0.5 * (1 - (dist / (sqrt((dist**2)+(radius**2))))) 
-    # intrinsic_efficiency = abs_effic / G
-    
-    # return intrinsic_efficiency
+    # calculating geometry factor
+    G = 0.5 * (1 - dist / np.sqrt(dist**2 + radius**2))
+
+    for source, peaks in detector.efficiency.items():
+
+        intrinsic_results[source] = []   
+        
+        for peak in peaks:
+            abs_eff = peak["absolute_efficiency"]
+            abs_err = peak["efficiency_error"]
+            intrinsic_efficiency = abs_eff / G
+            intrinsic_error = abs_err / G
+            energy = peak["energy"]
+
+            result = {
+                "source": source,
+                "energy": energy,
+                "intrinsic_efficiency": intrinsic_efficiency,
+                "intrinsic_error": intrinsic_error,
+            }
+
+            intrinsic_results[source].append(result)
+
+            print(
+                f"\n  Energy: {energy:.3f} keV"
+                f"\n  Intrinsic efficiency: "
+                f"{intrinsic_efficiency:.6e} +/- "
+                f"{intrinsic_error:.2e}"
+            )
+
+    detector.intrinsic_efficiency = intrinsic_results
+
+    print("\n" + "=" * 65)
+    print("INTRINSIC EFFICIENCY CALCULATION COMPLETE")
+    print("=" * 65)
+
+    return intrinsic_results
 
 
+
+def plot_intrinsic_efficiency(detector):
+    """
+    Plot absolute efficiency against gamma-ray energy
+    for all sources belonging to a detector.
+    """
+
+    if detector.intrinsic_efficiency is None:
+        raise ValueError("Calculate efficiency first.")
+
+    plt.figure(figsize=(8, 5))
+
+    for source, peaks in detector.intrinsic_efficiency.items():
+
+        if not peaks:
+            continue
+
+        energies = [p["energy"] for p in peaks]
+        efficiencies = [
+            p["intrinsic_efficiency"] for p in peaks
+        ]
+        errors = [
+            p["intrinsic_error"] for p in peaks
+        ]
+
+        plt.errorbar(
+            energies,
+            efficiencies,
+            yerr=errors,
+            fmt="o",
+            capsize=4,
+            label=source
+        )
+
+    plt.xlabel("Gamma-ray Energy (keV)")
+    plt.ylabel("Intrinsic Efficiency")
+    plt.title(f"{detector.name} Intrinsic Efficiency")
+    plt.grid(alpha=0.3)
+    plt.legend(title="Source")
+    plt.tight_layout()
+    plt.show()
 
 def plot_absolute_efficiency(detector):
     """

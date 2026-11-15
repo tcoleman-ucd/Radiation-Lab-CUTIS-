@@ -37,6 +37,7 @@ class Detector:
 
         self.resolution = None
         self.efficiency = None
+        self.intrinsic_efficiency = None
 
     # ---------------------------------------------------------
     # USER INPUT
