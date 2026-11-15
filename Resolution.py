@@ -45,9 +45,9 @@ def resolution(detector, title="Resolution",show=True):
     popt, pcov = curve_fit(resolution_model, E, y2, p0=p0, sigma=y2_err, absolute_sigma=True, bounds=(0, np.inf), maxfev=20000)
     perr = np.sqrt(np.diag(pcov))
 
-    R_fit = np.sqrt(resolution_model(E, *popt)) / E
+    #R_fit = np.sqrt(resolution_model(E, *popt)) / E
 
-   
+    #residuals = R - R_fit
 
     print(f"\n{title}: R^2 = a/E^2 + b/E + c")
     for n, v, e in zip("abc", popt, perr):
@@ -65,16 +65,18 @@ def resolution(detector, title="Resolution",show=True):
     
     E_fit_err = m * channel_errs
 
+    
+
     print("\nDetector  Isotope  E known  E fit   E fit err  FWHM (keV)  FWHM err      R    R err   R fit    Residuals")
     for i, pk in enumerate(peaks):
         det, iso = Path(pk["source"]).stem.split("_")[:2]
         print(f"{det:8}  {iso:7}  {E[i]:7.1f}  {E_fit[i]:6.1f}  {E_fit_err[i]:9.2f}  "
               f"{dE[i]:10.2f}  {dE_err[i]:8.2f}  "
-              f"{R[i]:6.3f}  {R_err[i]:6.3f}  {R_fit[i]:6.3f} {residuals[i]:6.3f}")
+              f"{R[i]:6.3f}  {R_err[i]:6.3f}  ") #{R_fit[i]:6.3f} {residuals[i]:6.3f}")
 
     E_line = np.logspace(np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200)
     R_line = np.sqrt(resolution_model(E_line, *popt)) / E_line
-    residuals = R - R_fit
+    
 
 
     plt.figure(figsize=(10, 6))

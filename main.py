@@ -252,12 +252,11 @@ def main():
         
 
 
-    # for name in ["BGO", "NaI", "CdTe"]:
-    #     detector = make_detector(name)
-       
-    #     for angle, spectrum in sorted(detector.off_axis_spectra[name].items()):
-    #         print(f"Co spectrum at {angle}°")
-    #         spectrum.plot(corrected=False)
+    # bgo = make_detector("NaI")
+    # for angle, spectrum in sorted(bgo.off_axis_spectra["Co"].items()):
+    #     print(f"Co spectrum at {angle}°")
+    #     spectrum.plot(corrected=False)
+
 
     # bgo.calibrate()
 

@@ -160,6 +160,6 @@ def run_off_axis(detector, source):
             print("Angle  RelEff   RelP/T   R (%)   Centroid   Amplitude    FWHM")
             for i, a in enumerate(r["angles"]):
                 print(f"{a:5.0f}  {r['rel_eff'][i]:6.3f}  {r['rel_ptt'][i]:6.3f}  "
-                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:8.2f}")
+                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:10.2f}")
     plt.show()      # show the fit checks for this source
     return out
