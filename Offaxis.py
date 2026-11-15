@@ -6,17 +6,14 @@ from fitting import fit_roi, gaussian
 
 
 def get_rois(detector, source):
-    """One job per calibration ROI of this source (single- or two-peak).
 
-    Each job: roi=(lower, upper), n=peaks in ROI, guesses=calibration
-    centroids (channels), energies=assigned energies (keV), lowest peak first.
-    """
     fit_results = detector.spectra[source].fit_results
-    if not fit_results:
-        raise RuntimeError(f"No {source} peaks were fitted during calibration.")
-
+    
     records = [r for r in detector.calibration_peak_records
                if r["isotope"] == source]
+    if not fit_results or not records:
+        print(f"{detector.name} {source}: no calibration peaks, skipping.")
+        return []
 
     jobs = []
     for fit in fit_results:
@@ -29,7 +26,7 @@ def get_rois(detector, source):
 
 
 def fit_all_angles(spectra, job):
-    """Fit one ROI at every angle. Returns {angle: fit_dict}."""
+    
     lo, hi = job["roi"]
     guesses = job["guesses"] if job["n"] == 2 else None
 
@@ -40,11 +37,12 @@ def fit_all_angles(spectra, job):
                               peak_guesses=guesses, corrected=True)
         except (ValueError, RuntimeError) as err:
             print(f"{a} deg: fit failed ({err}), skipping.")
+            
     return fits
 
 
 def plot_fit_checks(spectra, fits, roi, name=""):
-    """One panel per angle, to check each fit by eye."""
+    
     lo, hi = roi
     pad = (hi - lo) / 2
     x_fit = np.linspace(lo, hi, 300)
@@ -66,7 +64,7 @@ def plot_fit_checks(spectra, fits, roi, name=""):
 
 
 def normalise(x, x_err,i0):
-    """Divide by the 0 deg value (first entry) and propagate the error."""
+
     r = x / x[i0]
     r_err = r * np.sqrt((x_err / x) ** 2 + (x_err[i0] / x[i0]) ** 2)
     r_err[i0] = 0.0          # 0 deg divided by itself
@@ -74,7 +72,7 @@ def normalise(x, x_err,i0):
 
 
 def analyse(peaks, spectra, calibration):
-    """peaks: {angle: peak_dict} for one peak. Returns a result dict."""
+  
     angles = np.array(sorted(peaks))
     if 0 not  in angles:
         raise ValueError("No 0 deg measurement, cannot normalise.")
@@ -85,21 +83,28 @@ def analyse(peaks, spectra, calibration):
     area, area_err = col("area"), col("area_error")
     mu, mu_err = col("centroid"), col("centroid_error")
     fwhm, fwhm_err = col("fwhm"), col("fwhm_error")
+    amp, amp_err =col("amplitude"), col("amplitude_error")
 
     # Resolution dE/E in %, same definition as Resolution.py
     m, c = calibration["gradient"], calibration["intercept"]
     E = m * mu + c
     res = 100 * m * fwhm / E
     res_err = res * np.sqrt((fwhm_err / fwhm) ** 2 + (m * mu_err / E) ** 2)
+    fwhm_keV = m*fwhm
+    fwhm_keV_err = m*fwhm_err
 
     # Peak-to-total (only the peak error is propagated)
     total = np.array([spectra[a].corrected_cps().sum() for a in angles])
     ptt, ptt_err = area / total, area_err / total
 
     r = {"angles": angles, "energy": E, "centroid": mu,
-         "res": res, "res_err": res_err}
+         "res": res, "res_err": res_err, "fwhm_keV": fwhm_keV, 
+         "fwhm_keV_err": fwhm_keV_err,
+         "height" : amp, "height_err": amp_err
+         }
     for key, (x, err) in {"eff": (area, area_err), "ptt": (ptt, ptt_err),
-                          "res": (res, res_err), "mu": (mu, mu_err)}.items():
+                          "res": (res, res_err), "mu": (mu, mu_err),
+                          "height": (amp, amp_err), "fwhm":(fwhm_keV,fwhm_keV_err)}.items():
         r["rel_" + key], r["rel_" + key + "_err"] = normalise(x, err,i0)
     return r
 
@@ -109,16 +114,15 @@ TITLES = {
     "rel_ptt": "Peak-to-total ratio",
     "rel_res": "Energy resolution (ΔE/E)",
     "rel_mu":  "Peak centroid (control)",
+    "rel_fwhm": "FWHM",
+    "rel_height": "Peak height"
 }
 
 
 def plot_comparison(all_r):
-    """all_r: {(detector, source, energy): result dict}.
-
-    One figure per (source, energy), with the detectors overlaid.
-    """
+   
     for source, energy in sorted({(s, e) for _, s, e in all_r}):
-        fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+        fig, axes = plt.subplots(2, 3, figsize=(16, 8))
 
         for ax, (key, title) in zip(axes.flat, TITLES.items()):
             for (det, s, e), r in all_r.items():
@@ -138,7 +142,7 @@ def plot_comparison(all_r):
 
 
 def run_off_axis(detector, source):
-    """Analyse the off-axis response for one radioactive source."""
+ 
 
     spectra = detector.off_axis_spectra[source]
 
@@ -153,9 +157,9 @@ def run_off_axis(detector, source):
             out[energy] = r
 
             print(f"\n{detector.name} {source} {energy:.1f} keV")
-            print("Angle  RelEff   RelP/T   R (%)   Centroid")
+            print("Angle  RelEff   RelP/T   R (%)   Centroid   Amplitude    FWHM")
             for i, a in enumerate(r["angles"]):
                 print(f"{a:5.0f}  {r['rel_eff'][i]:6.3f}  {r['rel_ptt'][i]:6.3f}  "
-                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}")
+                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:8.2f}")
     plt.show()      # show the fit checks for this source
     return out

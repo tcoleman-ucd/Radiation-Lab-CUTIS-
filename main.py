@@ -1,11 +1,23 @@
 """Load source spectra for BGO, NaI and CdTe and calibrate each detector."""
-
+import difflib
 from pathlib import Path
 
 from spectra import Spectrum
 from detector import Detector
 
+def find_file(filename):
+    """Find a file under the folder containing this script, with a clear error."""
+    root = Path(__file__).resolve().parent
+    matches = list(root.rglob(filename))
+    if matches:
+        return matches[0]
 
+    all_files = [p.name for p in root.rglob("*") if p.is_file()]
+    close = difflib.get_close_matches(filename, all_files, n=5, cutoff=0.5)
+    raise FileNotFoundError(
+        f"\nLooking for: {filename!r}"
+        f"\nClosest real files: {close}"
+    )
 
 Detectors = {
     "BGO": {
@@ -88,7 +100,7 @@ Detectors = {
             "Cs": {
                 -90: "NaI_Cs_90(2)_10cm_180s.Spe",
                 -45: "Nal_Cs_45(2)_10cm_180s.Spe",
-                45:  "NaI_Cs_45(1)_10cm_180s.Spe",
+                45:  "Nal_Cs_45(1)_10cm_180s.Spe",
                 90:  "NaI_Cs_90(1)_10cm_180s.Spe"
             },
             "Co": {
@@ -114,7 +126,7 @@ Detectors = {
         "sources": {
             "Am": "CdTe_Am_0_10cm_180s.mca",
             "Ba": "CdTe_Ba_0_10cm_300s.mca",
-            "Cs": "CdTe_Cs_10cm_180s.mca",
+            "Cs": "CdTe_Cs_0_10cm_180s.mca",
             "Co": "CdTe_Co_0_10cm_420s.mca"
         },
 
@@ -132,7 +144,7 @@ Detectors = {
                 90:  "CdTe_Ba_90(1)_10cm_300s.mca"
             },
             "Cs": {
-                -90: "CdTe_Cs_90(2)_10cm_180s.mca",
+                -90: "CdTe_Cs_90(2)_20cm_180s.mca",
                 -45: "CdTe_Cs_45(2)_10cm_180s.mca",
                 45:  "CdTe_Cs_45(1)_10cm_180s.mca",
                 90:  "CdTe_Cs_90(1)_10cm_180s.mca"
@@ -209,7 +221,7 @@ def make_detector(name):
 
         for angle, filename in angles.items():
 
-            file_path = next(Path(".").rglob(filename))
+            file_path = find_file(filename)
 
             off_axis_spectra[source][angle] = Spectrum.from_file(
                 file_path,
@@ -228,15 +240,24 @@ def make_detector(name):
 
 
 def main():
+    for name in ["BGO", "NaI", "CdTe"]:
+        
+        detector = make_detector(name)
+
+        detector.calibrate()
+        detector.calculate_resolution()
+
+        for source in ["Am", "Ba", "Cs", "Co"]:
+            detector.calculate_off_axis(source)
+        
+
+
     # for name in ["BGO", "NaI", "CdTe"]:
     #     detector = make_detector(name)
-    #     detector.calibrate()
-
-
-    bgo = make_detector("BGO")
-    for angle, spectrum in sorted(bgo.off_axis_spectra["Co"].items()):
-        print(f"Co spectrum at {angle}°")
-        spectrum.plot(corrected=False)
+       
+    #     for angle, spectrum in sorted(detector.off_axis_spectra[name].items()):
+    #         print(f"Co spectrum at {angle}°")
+    #         spectrum.plot(corrected=False)
 
     # bgo.calibrate()
 
