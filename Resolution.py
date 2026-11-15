@@ -24,16 +24,17 @@ def resolution(detector, title="Resolution",show=True):
     fwhm_err = np.array([pk["fwhm_error"] for pk in peaks])
 
     #if cal.get("kind", "linear") == "linear":
-    p = [cal["gradient"], cal["intercept"]]
-    slope = np.full_like(channels, p[0])
+    m= cal["gradient"]
     #else:
     #    p = cal["quadratic"]["coefficients"]
      #   slope = 2 * p[0] * channels + p[1]
 
-    dE = fwhm * slope                  # FWHM in keV
+    dE = fwhm * m                  # FWHM in keV
 
-    dE_err = fwhm_err * slope
+    dE_err = fwhm_err * m
     R, R_err = dE / E, dE_err / E
+    
+    
 
     if len(E) < 4:
         print("Warning: fewer than 4 peaks, the 3-parameter fit is poorly constrained.")
@@ -45,35 +46,36 @@ def resolution(detector, title="Resolution",show=True):
     perr = np.sqrt(np.diag(pcov))
 
     R_fit = np.sqrt(resolution_model(E, *popt)) / E
-    residuals = R - R_fit
-    chi2_red = np.sum((residuals / R_err) ** 2) / (len(E) - 3) if len(E) > 3 else np.nan
+
+   
 
     print(f"\n{title}: R^2 = a/E^2 + b/E + c")
     for n, v, e in zip("abc", popt, perr):
         print(f"  {n} = {v:.4g} +/- {e:.2g}")
-    print(f"  reduced chi2 = {chi2_red:.2f}")
+    
 
     detectors, isotopes = [], []
     for pk in peaks:
-        tokens = Path(pk["source"]).stem.split("_")
-        detectors.append(tokens[0])
-        isotopes.append(tokens[1])
+        names = Path(pk["source"]).stem.split("_")
+        detectors.append(names[0])
+        isotopes.append(names[1])
 
-    if cal.get("kind", "linear") == "linear":
-        E_fit = detector.channel_to_energy(channels)
-    else:
-        E_fit = p[0] * channels ** 2 + p[1] * channels + p[2]
-    E_fit_err = slope * channel_errs
+    
+    E_fit = detector.channel_to_energy(channels)
+    
+    E_fit_err = m * channel_errs
 
-    print("\nDetector  Isotope  E known  E fit   E fit err  FWHM (keV)  FWHM err      R    R err   R fit")
+    print("\nDetector  Isotope  E known  E fit   E fit err  FWHM (keV)  FWHM err      R    R err   R fit    Residuals")
     for i, pk in enumerate(peaks):
         det, iso = Path(pk["source"]).stem.split("_")[:2]
         print(f"{det:8}  {iso:7}  {E[i]:7.1f}  {E_fit[i]:6.1f}  {E_fit_err[i]:9.2f}  "
               f"{dE[i]:10.2f}  {dE_err[i]:8.2f}  "
-              f"{R[i]:6.3f}  {R_err[i]:6.3f}  {R_fit[i]:6.3f}")
+              f"{R[i]:6.3f}  {R_err[i]:6.3f}  {R_fit[i]:6.3f} {residuals[i]:6.3f}")
 
     E_line = np.logspace(np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200)
     R_line = np.sqrt(resolution_model(E_line, *popt)) / E_line
+    residuals = R - R_fit
+
 
     plt.figure(figsize=(10, 6))
     plt.errorbar(E, R*100, yerr=R_err*100, fmt="o", color="black", capsize=3, label="Data")
@@ -92,15 +94,9 @@ def resolution(detector, title="Resolution",show=True):
     plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E (%)")
     plt.title(title)
     plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
-
-    plt.figure(figsize=(7, 3.5))
-    plt.errorbar(E, residuals, yerr=R_err, fmt="o", color="black", capsize=3)
-    plt.axhline(0, color="red", ls="--")
-    plt.xlabel("Energy (keV)")
-    plt.ylabel(r"$R_{data}-R_{fit}$")
-    plt.title(f"{title} residuals")
-    plt.grid(True, ls="--", alpha=0.5)
     plt.show()
 
-    return {"params": popt, "errs": perr, "E": E, "R": R, "R_err": R_err,
-            "chi2_red": chi2_red}
+
+
+
+    return {"params": popt, "errs": perr, "E": E, "R": R, "R_err": R_err,}
