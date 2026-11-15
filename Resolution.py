@@ -9,7 +9,7 @@ def resolution_model(E, a, b, c):
     return a + b * E + c * E ** 2
 
 
-def resolution(detector, title="Resolution", show=True):
+def resolution(detector, title="Resolution",show=True):
     """Energy resolution from a Detector object (uses the peaks stored in it)."""
     cal = detector.calibration
     peaks = detector.calibration_peak_records
@@ -23,12 +23,12 @@ def resolution(detector, title="Resolution", show=True):
     fwhm = np.array([pk["fwhm"] for pk in peaks])
     fwhm_err = np.array([pk["fwhm_error"] for pk in peaks])
 
-    if cal.get("kind", "linear") == "linear":
-        p = [cal["gradient"], cal["intercept"]]
-        slope = np.full_like(channels, p[0])
-    else:
-        p = cal["quadratic"]["coefficients"]
-        slope = 2 * p[0] * channels + p[1]
+    #if cal.get("kind", "linear") == "linear":
+    p = [cal["gradient"], cal["intercept"]]
+    slope = np.full_like(channels, p[0])
+    #else:
+    #    p = cal["quadratic"]["coefficients"]
+     #   slope = 2 * p[0] * channels + p[1]
 
     dE = fwhm * slope                  # FWHM in keV
 
