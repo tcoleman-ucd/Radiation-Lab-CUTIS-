@@ -239,8 +239,10 @@ def make_detector(name):
 
 
 
+
+
 def main():
-    for name in ["BGO", "NaI", "CdTe"]:
+    for name in ["BGO"]:
         
         detector = make_detector(name)
 

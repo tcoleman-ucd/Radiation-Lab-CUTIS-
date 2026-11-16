@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from pathlib import Path
-
+import os
 
 def resolution_model(E, a, b, c):
     """FWHM^2 = a + b*E + c*E^2   (so R^2 = a/E^2 + b/E + c)."""
@@ -11,6 +11,8 @@ def resolution_model(E, a, b, c):
 
 def resolution(detector, title="Resolution",show=True):
     """Energy resolution from a Detector object (uses the peaks stored in it)."""
+    plot_folder = "Plots"
+    
     cal = detector.calibration
     peaks = detector.calibration_peak_records
 
@@ -91,13 +93,14 @@ def resolution(detector, title="Resolution",show=True):
     plt.plot(E_line, R_line*100, "r-", lw=2, label=r"Fit: $R=\sqrt{aE^{-2}+bE^{-1}+c}$")
     plt.xscale("log")
     plt.yscale("log")
-    plt.xticks([10, 20, 50, 100, 200, 500, 1000, 2000], ["10", "20", "50", "100", "200", "500", "1000", "2000"])
-    plt.yticks([1, 2, 5, 10, 20, 50, 60, 70, 80, 90, 100], ["1", "2", "5", "10", "20", "50", "60","70", "80", "90", "100"])
+    #plt.xticks([10, 20, 50, 100, 200, 500, 1000, 2000], ["10", "20", "50", "100", "200", "500", "1000", "2000"])
+    #plt.yticks([1, 2, 5, 10, 20, 50, 60, 70, 80, 90, 100], ["1", "2", "5", "10", "20", "50", "60","70", "80", "90", "100"])
     plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E (%)")
     plt.title(title)
     plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
-    plt.show()
-
+    file_path = os.path.join(plot_folder, "Resolution.jpg")
+    plt.savefig(file_path, format = "jpg", dpi=300, bbox_inches = "tight")
+    plt.close()
 
 
 

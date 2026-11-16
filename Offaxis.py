@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+import os
 from fitting import fit_roi, gaussian
 ### We should also consider FWHM and peak height as functions of angle. - THomas
-
+plot_folder = "Plots"
 
 def get_rois(detector, source):
 
@@ -61,6 +61,9 @@ def plot_fit_checks(spectra, fits, roi, name=""):
     axes[0][0].set_ylabel("Corrected CPS")
     fig.suptitle(name)
     plt.tight_layout()
+    filename = f"{name}keV.jpg"
+    fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 
 def normalise(x, x_err,i0):
@@ -120,7 +123,7 @@ TITLES = {
 
 
 def plot_comparison(all_r):
-   
+    
     for source, energy in sorted({(s, e) for _, s, e in all_r}):
         fig, axes = plt.subplots(2, 3, figsize=(16, 8))
 
@@ -138,7 +141,10 @@ def plot_comparison(all_r):
 
         fig.suptitle(f"{source} {energy:.1f} keV off-axis response")
         plt.tight_layout()
-    plt.show()
+        filename = f"{source}_{energy:.1f}keV.jpg"
+        fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
+        plt.close(fig)
+    
 
 
 def run_off_axis(detector, source):
