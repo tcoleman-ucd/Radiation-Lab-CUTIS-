@@ -231,57 +231,57 @@ def extract_measurement_date(filename):
 # SELECT A PEAK
 # ============================================================
 
-# def select_peak(detector, source):
-#     """
-#     Display fitted peaks for a source and ask the user
-#     which peak should be used for efficiency.
-#     """
+def select_peak(detector, source):
+    """
+    Display fitted peaks for a source and ask the user
+    which peak should be used for efficiency.
+    """
 
-#     records = [
-#         peak
-#         for peak in detector.calibration_peak_records
-#         if peak["isotope"] == source
-#     ]
+    records = [
+        peak
+        for peak in detector.calibration_peak_records
+        if peak["isotope"] == source
+    ]
 
-#     if not records:
-#         raise ValueError(
-#             f"No fitted calibration peaks found for {source}."
-#         )
+    if not records:
+        raise ValueError(
+            f"No fitted calibration peaks found for {source}."
+        )
 
-#     records = sorted(
-#         records,
-#         key=lambda peak: peak["energy"]
-#     )
+    records = sorted(
+        records,
+        key=lambda peak: peak["energy"]
+    )
 
-#     print("\nAvailable fitted peaks")
-#     print("-" * 65)
+    print("\nAvailable fitted peaks")
+    print("-" * 65)
 
-#     for i, peak in enumerate(records, 1):
+    for i, peak in enumerate(records, 1):
 
-#         print(
-#             f"{i}. Energy: {peak['energy']:.3f} keV | "
-#             f"Centroid: {peak['centroid']:.2f} channels | "
-#             f"Count rate: {peak['area']:.3f} CPS"
-#         )
+        print(
+            f"{i}. Energy: {peak['energy']:.3f} keV | "
+            f"Centroid: {peak['centroid']:.2f} channels | "
+            f"Count rate: {peak['area']:.3f} CPS"
+        )
 
-#     print("-" * 65)
+    print("-" * 65)
 
-#     while True:
+    while True:
 
-#         answer = input(
-#             "\nSelect the peak number for efficiency calculation: "
-#         ).strip()
+        answer = input(
+            "\nSelect the peak number for efficiency calculation: "
+        ).strip()
 
-#         try:
-#             choice = int(answer)
+        try:
+            choice = int(answer)
 
-#             if 1 <= choice <= len(records):
-#                 return records[choice - 1]
+            if 1 <= choice <= len(records):
+                return records[choice - 1]
 
-#             print("Please select one of the listed peaks.")
+            print("Please select one of the listed peaks.")
 
-#         except ValueError:
-#             print("Please enter a valid peak number.")
+        except ValueError:
+            print("Please enter a valid peak number.")
 
 
 # ============================================================
@@ -303,7 +303,7 @@ def get_emission_fraction(source, energy):
         if np.isclose(
             energy,
             known_energy,
-            atol=1.01
+            atol=0.01
         ):
             print(
                 f"Using emission fraction {fraction} "
@@ -466,8 +466,6 @@ def absolute_efficiency(detector, source=None):
                     f"{efficiency_error:.2e}"
                 )
 
-        # Store results directly in the Detector object.
-    detector.efficiency = results
 
     print("\n" + "=" * 65)
     print("EFFICIENCY CALCULATION COMPLETE")
@@ -475,48 +473,51 @@ def absolute_efficiency(detector, source=None):
 
     return results
 
-def intrinsic_eff(asb_effic, filename):   
-    #WHatever the intrinisic effeciencie ends up being you can append it to the result in absolute effciency
-    '''
-    Function that calculates the intrinsic efficiency of the detector.
-    This is done by determining and applying a geometry factor which 
-    itself is dependant on the detectors radius and distance from 
-    the radio isotope source.
-    __________________
-    Parameters
-        dist: Float
-        The distance the detector is from the radioisotope
+def intrinsic_eff(detector):
+    """
+    Calculate intrinsic photopeak efficiency using the
+    detector radius and each spectrum's source distance.
+    """
 
-        radius: Float
-        radius of the detector
+    if not detector.efficiency:
+        raise ValueError(
+            "No absolute efficiency results stored. "
+            "Run calculate_absolute_efficiency() first."
+        )
 
-        abs_effic: Float
-        absolute efficiency of the detector
-    ___________________
-    Outputs
-        intrinsic_efficiency: Float
-        intrinsic efficiency of the detector
-    
-    '''
-    pass
-    # #get detector from file name
-    # detector = str(filename).split('_')[0]
+    radius = detector.radius
 
-    # # radius list of detectors
-    # dist = 0.1 # meters
-    # rad_list =  {
-    #     "BGO": #radius of bgo detector,
-    #     "NaI": #radius of nai detector,
-    #     "CdTe": #radius of bcdte detector
-    # }
+    results = {}
 
-    # radius = rad_list[detector]
+    for source, peaks in detector.efficiency.items():
 
-    # #geometry factor
-    # G = 0.5 * (1 - (dist / (sqrt((dist**2)+(radius**2))))) 
-    # intrinsic_efficiency = abs_effic / G
-    
-    # return intrinsic_efficiency
+        # We can actually get the distance from the Spectrum class - Thomas
+        dist = detector.spectra[source].distance
+
+        if dist is None or dist <= 0:
+            raise ValueError(
+                f"No valid source distance stored for {source}."
+            )
+
+        # Calculate geometry factor for this source
+        G = 0.5 * (1 - dist / np.sqrt(dist**2 + radius**2))
+
+        results[source] = []
+
+        for peak in peaks:
+
+            abs_eff = peak["absolute_efficiency"]
+            abs_err = peak["efficiency_error"]
+
+            updated_peak = peak.copy()
+
+            updated_peak["geometry_factor"] = G
+            updated_peak["intrinsic_efficiency"] = abs_eff / G
+            updated_peak["intrinsic_efficiency_error"] = abs_err / G
+
+            results[source].append(updated_peak)
+
+    return results
 
 
 
@@ -555,11 +556,54 @@ def plot_absolute_efficiency(detector):
 
     plt.xlabel("Gamma-ray Energy (keV)")
     plt.ylabel("Absolute Efficiency")
-    plt.xscale("log")
-    plt.yscale("log")
     plt.title(f"{detector.name} Absolute Efficiency")
     plt.grid(alpha=0.3)
     plt.legend(title="Source")
     plt.tight_layout()
+    plt.show()
 
+def plot_intrinsic_efficiency(detector):
+    """
+    Plot intrinsic efficiency against gamma-ray energy
+    for all sources belonging to a detector.
+    """
+
+    if detector.efficiency is None:
+        raise ValueError("Calculate efficiency first.")
+
+    plt.figure(figsize=(8, 5))
+
+    for source, peaks in detector.efficiency.items():
+
+        if not peaks:
+            continue
+
+        energies = [p["energy"] for p in peaks]
+        efficiencies = [
+            p["intrinsic_efficiency"] for p in peaks
+        ]
+        errors = [
+            p["intrinsic_efficiency_error"] for p in peaks
+        ]
+
+        plt.errorbar(
+            energies,
+            efficiencies,
+            yerr=errors,
+            fmt="o",
+            capsize=4,
+            label=source
+        )
+
+    plt.axhline(1, color="gray", linestyle="--", alpha=0.6)
+
+    plt.xscale("log")
+    plt.yscale("log")
+
+    plt.xlabel("Gamma-ray Energy (keV)")
+    plt.ylabel("Intrinsic Photopeak Efficiency")
+    plt.title(f"{detector.name} Intrinsic Efficiency")
+    plt.grid(alpha=0.3)
+    plt.legend(title="Source")
+    plt.tight_layout()
     plt.show()
