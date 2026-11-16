@@ -2,8 +2,6 @@
 import difflib
 from pathlib import Path
 
-
-from Offaxis import run_off_axis , plot_comparison 
 from spectra import Spectrum
 from detector import Detector
 import argparse
@@ -247,27 +245,32 @@ def main():
     parser.add_argument("Calibration", nargs ="+")
     
     args = parser.parse_args()
-    print(args)
-
+  
     all_r={}
     if len(args.Calibration) > 1:
         for name in args.Calibration:
+            source_keys = list(Detectors[name]["sources"].keys())
+            print(Detectors[name]["sources"]["Ba"])
             det = make_detector(name)
             det.calibrate()
+        
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
             det.calculate_intrinsic_efficiency()
+            for source in source_keys:
+                det.calculate_off_axis(source)
 
 
-            plot_comparison(all_r)
+  
     else:
             name = args.Calibration[0]
-            print(name)
+            source_keys = list(Detectors[name]["sources"].keys())
             det = make_detector(name)
             det.calibrate()
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
-            det.calculate_off_axis("Ba")
+            for source in source_keys:
+                det.calculate_off_axis(source)
             
         
 
