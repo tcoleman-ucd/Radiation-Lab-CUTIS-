@@ -1,9 +1,12 @@
 """Load source spectra for BGO, NaI and CdTe and calibrate each detector."""
 import difflib
 from pathlib import Path
+from Efficiency import absolute_efficiency, plot_absolute_efficiency
 
+from Offaxis import run_off_axis , plot_comparison 
 from spectra import Spectrum
 from detector import Detector
+import argparse
 
 def find_file(filename):
     """Find a file under the folder containing this script, with a clear error."""
@@ -242,15 +245,40 @@ def make_detector(name):
 
 
 def main():
-    for name in ["BGO"]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("Calibration", nargs ="+")
+    
+    args = parser.parse_args()
+    print(args)
+
+    all_r={}
+    if len(args.Calibration) > 1:
+        for name in args.Calibration:
+            det = make_detector(name)
+            det.calibrate()
+            det.calculate_resolution()
+            absolute_efficiency(det)
+            plot_absolute_efficiency(det)
+
+            for source in measurements[name]["sources"]:
+                spectra = make_detector_for_Offaxis(name, source)
+                for energy, r in run_off_axis(det, spectra, source).items():
+                    all_r[(name, source, energy)] = r
+
+            plot_comparison(all_r)
+    else:
+            name = args.Calibration[0]
+            print(name)
+            det = make_detector(name)
+            det.calibrate()
+            det.calculate_resolution()
+            absolute_efficiency(det)
+            plot_absolute_efficiency(det)
         
-        detector = make_detector(name)
-
-        detector.calibrate()
-        detector.calculate_resolution()
-
-        for source in ["Am", "Ba", "Cs", "Co"]:
-            detector.calculate_off_axis(source)
+            for source in measurements[name]["sources"]:
+                spectra = make_detector_for_Offaxis(name, source)
+            for energy, r in run_off_axis(det, spectra, source).items():
+                all_r[(name, source, energy)] = r
         
 
 
