@@ -3,7 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-
+import matplotlib.pyplot as plt
+import os
 
 def linear(channel, m, c):
     return m * channel + c
@@ -81,7 +82,7 @@ def energy_to_channel(energy, calibration):
 
 
 def plot_calibration(calibration):
-
+    plot_folder = "Plots"
     channels = calibration["channels"]
     channel_errors = calibration["channel_errors"]
     energies = calibration["energies"]
@@ -141,5 +142,6 @@ def plot_calibration(calibration):
     ax2.grid(alpha=0.3)
     ax2.legend()
 
-    plt.tight_layout()
-    plt.show()
+    file_path = os.path.join(plot_folder, "Calibration.jpg")
+    plt.savefig(file_path, format = "jpg", dpi=300, bbox_inches = "tight")
+    plt.close()
