@@ -240,25 +240,26 @@ def make_detector(name):
 
 
 def main():
-    for name in ["BGO", "NaI", "CdTe"]:
+    # for name in ["BGO", "NaI", "CdTe"]:
+    #
+    #     detector = make_detector(name)
+    #
+    #     detector.calibrate()
+    #     detector.calculate_resolution()
+
+    #
+    #     for source in ["Am", "Ba", "Cs", "Co"]:
+    #         detector.calculate_off_axis(source)
         
-        detector = make_detector(name)
-
-        detector.calibrate()
-        detector.calculate_resolution()
-
-        for source in ["Am", "Ba", "Cs", "Co"]:
-            detector.calculate_off_axis(source)
-        
 
 
-    # bgo = make_detector("NaI")
+    bgo = make_detector("NaI")
     # for angle, spectrum in sorted(bgo.off_axis_spectra["Co"].items()):
     #     print(f"Co spectrum at {angle}°")
     #     spectrum.plot(corrected=False)
 
 
-    # bgo.calibrate()
+    bgo.calibrate()
 
 
 
@@ -278,9 +279,9 @@ def main():
     # # bgo.calculate_absolute_efficiency()
     # # bgo.calculate_resolution()
     #
-    # bgo.calculate_absolute_efficiency(plot=True)
-    #
-    # bgo.calculate_intrinsic_efficiency(plot=True)
+    print(bgo.calculate_absolute_efficiency())
+
+    print(bgo.calculate_intrinsic_efficiency())
     # bgo.calculate_off_axis("Co")
     # for source in bgo.off_axis_spectra:
     #     bgo.calculate_off_axis(source)
