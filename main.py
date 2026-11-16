@@ -281,7 +281,7 @@ def main():
 
 
 
-    # bgo.calibrate()
+  
 
     # print(bgo.calculate_absolute_efficiency())
 
