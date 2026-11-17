@@ -7,36 +7,43 @@ from scipy.optimize import curve_fit
 # True: identify energies in the original plot. False: identify in the terminal.
 IDENTIFY_IN_PLOT = True
 
+# Keeping this incase we want to return to it
+# def continuum(x, a, b, c, d):
+#     """Third-order polynomial continuum, as in the previous assignment."""
+#     return a * x**3 + b * x**2 + c * x + d
 
-def continuum(x, a, b, c, d):
-    """Third-order polynomial continuum, as in the previous assignment."""
-    return a * x**3 + b * x**2 + c * x + d
+# Linear continuum
+def continuum(x, m, c):
+    """Linear background beneath a photopeak."""
+    return m * x + c
 
 
-def gaussian(x, A1, mu1, sigma1, a, b, c, d,
+def gaussian(x, A1, mu1, sigma1, m, c,
              A2=None, mu2=None, sigma2=None):
-    """One or two Gaussian peaks on a shared cubic continuum."""
 
-    peak1 = A1 * np.exp(
+    """One or two area-normalised Gaussians on a linear continuum."""
+
+    peak1 = (A1 / (sigma1 * np.sqrt(2 * np.pi))) * np.exp(
         -((x - mu1)**2) / (2 * sigma1**2)
     )
 
-    fitted_continuum = continuum(x, a, b, c, d)
+    fitted_continuum = continuum(x, m, c)
     fit = peak1 + fitted_continuum
 
-    # Add second Gaussian if all parameters are provided
+    # Optional second Gaussian
     if all(p is not None for p in (A2, mu2, sigma2)):
 
-        peak2 = A2 * np.exp(
+        peak2 = (A2 / (sigma2 * np.sqrt(2 * np.pi))) * np.exp(
             -((x - mu2)**2) / (2 * sigma2**2)
         )
 
         fit = fit + peak2
 
-    # Raise an error if only some parameters were provided
     elif any(p is not None for p in (A2, mu2, sigma2)):
 
-        raise ValueError("The second Gaussian requires A2, mu2 and sigma2.")
+        raise ValueError(
+            "The second Gaussian requires A2, mu2 and sigma2."
+        )
 
     return fit
 
@@ -72,9 +79,8 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
     channels_roi = spectrum.channels[mask]
     counts_roi = count_rates[mask]
 
-    n_parameters = 3 * n + 4
-    # We need more data points than fitting parameters,
-    # but this is only for the maths, doesn't guarantee a good fit. - Thomas
+    n_parameters = 3 * n + 2
+    # We need more data points than fitting parameters
     if len(channels_roi) <= n_parameters:
         raise ValueError("Not enough channels to fit the Gaussian model.")
 
@@ -89,87 +95,116 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
     # Below is an AI suggestion it seems to work much better - Thomas
 
     # Estimate a straight-line continuum from the ends of the ROI.
-    # This is only an initial guess; the final fit still uses a cubic.
+    # This is only an initial guess, curve_fit() will still improve this
+    # Estimate the continuum from the edges of the ROI
     n_channels = len(channels_roi)
     edge_n = max(2, n_channels // 5)
 
-    edge_channels = np.concatenate([
-        channels_roi[:edge_n],
-        channels_roi[-edge_n:]
-    ])
-    edge_counts = np.concatenate([
-        counts_roi[:edge_n],
-        counts_roi[-edge_n:]
-    ])
+    # Average the first and last 20% of the ROI
+    x1 = np.mean(channels_roi[:edge_n])
+    y1 = np.mean(counts_roi[:edge_n])
 
-    m_initial, intercept_initial = np.polyfit(
-        edge_channels, edge_counts, 1
-    )
+    x2 = np.mean(channels_roi[-edge_n:])
+    y2 = np.mean(counts_roi[-edge_n:])
 
-    a_initial = 0.0
-    b_initial = 0.0
-    c_initial = m_initial
-    d_initial = intercept_initial
+    # Initial gradient and intercept
+    m_initial = (y2 - y1) / (x2 - x1)
+    c_initial = y1 - m_initial * x1
 
+    # Subtract the estimated continuum to find the peak
     continuum_initial = continuum(
-        channels_roi,
-        a_initial, b_initial, c_initial, d_initial
+        channels_roi, m_initial, c_initial
     )
+
     residual = counts_roi - continuum_initial
 
     # Estimate one peak automatically, or use two manually chosen positions.
     if n == 1:
-        mu1_initial = channels_roi[np.argmax(residual)]
-
+        mu1_initial = channels_roi[np.argmax(residual)]  # The highest count rate above the continuum
     else:
         if peak_guesses is None or len(peak_guesses) != 2:
             raise ValueError("Provide two approximate peak positions in channels.")
 
         mu1_initial, mu2_initial = sorted(peak_guesses)
 
-    # Estimate the peak amplitude and width before fitting.
+    # Estimate initial peak positions
     if n == 1:
-        # Estimate the amplitude and width from the continuum-subtracted peak
-        A1_initial = np.max(residual)
+        mu1_initial = channels_roi[np.argmax(residual)]
 
-        half_max_channels = channels_roi[residual >= A1_initial / 2]
+    else:
+        if peak_guesses is None or len(peak_guesses) != 2:
+            raise ValueError(
+                "Provide two approximate peak positions in channels."
+            )
+
+        mu1_initial, mu2_initial = sorted(peak_guesses)
+
+    # Estimate the initial Gaussian amplitude and width
+    if n == 1:
+
+        amplitude1_initial = np.max(residual) # the highest count above the continuum
+
+        if amplitude1_initial <= 0:
+            raise ValueError("No positive peak found in the ROI.")
+
+        half_max_channels = channels_roi[
+            residual >= amplitude1_initial / 2
+            ]
 
         fwhm_initial = half_max_channels[-1] - half_max_channels[0]
 
+        if fwhm_initial <= 0:
+            raise ValueError("Could not estimate a positive FWHM.")
+
         sigma_initial = fwhm_initial / 2.355
 
-
     else:
-        # Rough initial width for both overlapping peaks
+
+        # Initial width estimate for two overlapping peaks
         sigma_initial = (upper - lower) / 10
 
-        # Estimate amplitude at the selected peak position
-        A1_initial = residual[
+        amplitude1_initial = residual[
             np.argmin(np.abs(channels_roi - mu1_initial))
         ]
 
+        if amplitude1_initial <= 0:
+            raise ValueError("No positive peak at the selected position.")
+
+    # Convert the estimated amplitude to integrated Gaussian area
+    A1_initial = amplitude1_initial * sigma_initial * np.sqrt(2 * np.pi)
+
+    # Initial guesses for Gaussian area, centroid, width and continuum
     initial_guess = [
         A1_initial, mu1_initial, sigma_initial,
-        a_initial, b_initial, c_initial, d_initial
+        m_initial, c_initial
     ]
 
-    lower_bounds = [0, lower, 0, -np.inf, -np.inf, -np.inf, -np.inf]
-    upper_bounds = [np.inf, upper, np.inf, np.inf, np.inf, np.inf, np.inf]
-    # These are AI suggested bounds for fitting -Thomas
+    # Bounds for one Gaussian and a linear continuum
+    lower_bounds = [0, lower, 0, -np.inf, -np.inf]
+    upper_bounds = [np.inf, upper, np.inf, np.inf, np.inf]
 
     # Optional second Gaussian
     if n == 2:
-        A2_initial = residual[
+
+        # Estimate the amplitude of the second peak
+        amplitude2_initial = residual[
             np.argmin(np.abs(channels_roi - mu2_initial))
         ]
 
-        initial_guess.extend([A2_initial, mu2_initial, sigma_initial])
+        if amplitude2_initial <= 0:
+            raise ValueError("No positive second peak at the selected position.")
 
-        # These are AI suggested -Thomas
+        # Convert amplitude to integrated Gaussian area
+        A2_initial = amplitude2_initial * sigma_initial * np.sqrt(2 * np.pi)
+
+        # Add the second Gaussian's initial parameters
+        initial_guess.extend([
+            A2_initial, mu2_initial, sigma_initial
+        ])
+
+        # Add bounds for the second Gaussian (area, centroid, width)
         lower_bounds.extend([0, lower, 0])
         upper_bounds.extend([np.inf, upper, np.inf])
-
-        # NOTE: Currently if the peaks are picked too close together it kinda messes up - Thomas
 
     parameters, covariance = curve_fit(
         gaussian,
@@ -179,6 +214,7 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
         bounds=(lower_bounds, upper_bounds),
         maxfev=20000
     )
+    # Weighted fitting with Poisson uncertainties would be good here but I don't have time to implement it -Thomas
 
     if not np.all(np.isfinite(covariance)):
         raise RuntimeError(
@@ -192,49 +228,56 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
 
     # Parameter positions for the first Gaussian, and second if present
     # Order: A1, mu1, sigma1, a, b, c, d, A2, mu2, sigma2
+    # Calculate the properties of each fitted Gaussian
+    components = []
+
+    # Parameter positions: A1, mu1, sigma1, m, c, A2, mu2, sigma2
     peak_indices = [(0, 1, 2)]
 
     if n == 2:
-        peak_indices.append((7, 8, 9))
+        peak_indices.append((5, 6, 7))
 
     for A_index, mu_index, sigma_index in peak_indices:
-
-        # Extract fitted parameters and their uncertainties
+        # Extract fitted parameters
         A = parameters[A_index]
         mu = parameters[mu_index]
         sigma = parameters[sigma_index]
 
+        # Extract parameter uncertainties
         A_error = parameter_errors[A_index]
         mu_error = parameter_errors[mu_index]
         sigma_error = parameter_errors[sigma_index]
 
-        # Convert Gaussian standard deviation to FWHM
+        # Calculate FWHM and its uncertainty
         fwhm = 2.355 * sigma
         fwhm_error = 2.355 * sigma_error
 
-        # Integrated Gaussian area, used later for detector efficiency
-        area = A * sigma * np.sqrt(2 * np.pi)
+        # A is already the integrated Gaussian area
+        area = A
+        area_error = A_error
 
-        # The area depends on two fitted parameters, A and sigma.
-        # Both have uncertainties, so both contribute to the uncertainty in the area.
+        # Calculate peak height from the fitted area
+        amplitude = A / (sigma * np.sqrt(2 * np.pi))
 
-        # Here are the uncertainties in amplitude and width,
-        # including their covariance from the fit
-        variance_area = (
-            sigma**2 * covariance[A_index, A_index]
-            + A**2 * covariance[sigma_index, sigma_index]
-            + 2 * A * sigma * covariance[A_index, sigma_index]
+        # we have to propagate the uncertainties in A and sigma
+        # including their covariance
+
+        # Propagate the area and width uncertainties into the height
+        dH_dA = 1 / (sigma * np.sqrt(2 * np.pi))
+        dH_dsigma = -A / (sigma ** 2 * np.sqrt(2 * np.pi))
+
+        variance_amplitude = (
+                dH_dA ** 2 * covariance[A_index, A_index]
+                + dH_dsigma ** 2 * covariance[sigma_index, sigma_index]
+                + 2 * dH_dA * dH_dsigma * covariance[A_index, sigma_index]
         )
 
-        # Alternatively, we could fit the Gaussian area directly like in the manual.
-        # Then its uncertainty can be read from the covariance matrix instead.
-        # Which I'll probably do - Thomas
 
-        area_error = np.sqrt(max(variance_area, 0)) * np.sqrt(2 * np.pi)
+        amplitude_error = np.sqrt(max(variance_amplitude, 0))
 
         components.append({
-            "amplitude": A,
-            "amplitude_error": A_error,
+            "amplitude": amplitude,
+            "amplitude_error": amplitude_error,
             "centroid": mu,
             "centroid_error": mu_error,
             "sigma": sigma,
@@ -250,19 +293,20 @@ def fit_roi(spectrum, lower, upper, n=1, corrected=True, peak_guesses=None):
         if components[0]["centroid"] > components[1]["centroid"]:
             components.reverse()
 
-
+    # Store the fitting results
     result = {
         "roi": (lower, upper),
         "n_peaks": n,
         "components": components,
-        "continuum_coefficients": parameters[3:7],
+        "continuum_coefficients": parameters[3:5],
         "parameters": parameters,
         "covariance": covariance
     }
 
-    # Allow single-peak results to be accessed directly, e.g. result["centroid"]
+    # Allow direct access to single Gaussian parameters
     if n == 1:
         result.update(components[0])
+
 
     return result
 

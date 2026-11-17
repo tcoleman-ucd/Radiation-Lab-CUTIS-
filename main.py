@@ -4,6 +4,7 @@ from pathlib import Path
 
 from spectra import Spectrum
 from detector import Detector
+import argparse
 
 def find_file(filename):
     """Find a file under the folder containing this script, with a clear error."""
@@ -239,53 +240,53 @@ def make_detector(name):
 
 
 
-
-
 def main():
-    for name in ["BGO"]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("Calibration", nargs ="+")
+    
+    args = parser.parse_args()
+  
+    all_r={}
+    if len(args.Calibration) > 1:
+        for name in args.Calibration:
+            source_keys = list(Detectors[name]["sources"].keys())
+            print(Detectors[name]["sources"]["Ba"])
+            det = make_detector(name)
+            det.calibrate()
         
-        detector = make_detector(name)
+            det.calculate_resolution()
+            det.calculate_absolute_efficiency()
+            det.calculate_intrinsic_efficiency()
+            for source in source_keys:
+                det.calculate_off_axis(source)
 
-        detector.calibrate()
-        detector.calculate_resolution()
 
-        for source in ["Am", "Ba", "Cs", "Co"]:
-            detector.calculate_off_axis(source)
+  
+    else:
+            name = args.Calibration[0]
+            source_keys = list(Detectors[name]["sources"].keys())
+            det = make_detector(name)
+            det.calibrate()
+            det.calculate_resolution()
+            det.calculate_absolute_efficiency()
+            for source in source_keys:
+                det.calculate_off_axis(source)
+            
         
+
+
 
 
     # bgo = make_detector("NaI")
-    # for angle, spectrum in sorted(bgo.off_axis_spectra["Co"].items()):
-    #     print(f"Co spectrum at {angle}°")
-    #     spectrum.plot(corrected=False)
-
-
-    # bgo.calibrate()
 
 
 
-    # for angle in [0, 90]:
-    #     spectrum = bgo.off_axis_spectra["Cs"][angle]
-    #
-    #     print(
-    #         angle,
-    #         "degrees:",
-    #         spectrum.corrected_cps().sum(),
-    #         "total counts/s"
-    #     )
+  
 
-    #
-    # # bgo.calibrate(identification='terminal')
-    # bgo.calibrate()
-    # # bgo.calculate_absolute_efficiency()
-    # # bgo.calculate_resolution()
-    #
-    # bgo.calculate_absolute_efficiency(plot=True)
-    #
-    # bgo.calculate_intrinsic_efficiency(plot=True)
-    # bgo.calculate_off_axis("Co")
-    # for source in bgo.off_axis_spectra:
-    #     bgo.calculate_off_axis(source)
+    # print(bgo.calculate_absolute_efficiency())
+
+    # print(bgo.calculate_intrinsic_efficiency())
+
 
 
 if __name__ == "__main__":
