@@ -31,7 +31,7 @@ Detectors = {
                 "Am": "BGO_Am_0_10cm_180s.Spe",
                 "Ba": "BGO_Ba_0_10cm_300s.Spe",
                 "Cs": "BGO_Cs_0_10cm_180s.Spe",
-                "Co": "BGO_Co_0_10cm_420s.Spe"
+                "Co": "bgo-co60-000-10cm-box1-g4.Spe"
             },
             0.2: {
                 "Am": "BGO_Am_0_20cm_180s.Spe",
@@ -201,14 +201,14 @@ def make_detector(name):
     reference_distance = next(iter(Detectors[name]["distances"]))
     files = Detectors[name]["distances"][reference_distance]
 
-    background_path = next(Path(".").rglob(background_filename))
+    background_path = find_file(background_filename)
 
     spectra = {}
 
     # Load on-axis calibration spectra
     for source, filename in files.items():
 
-        file_path = next(Path(".").rglob(filename))
+        file_path = find_file(filename)
 
         spectra[source] = Spectrum.from_file(
             file_path,
