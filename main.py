@@ -71,7 +71,7 @@ Detectors = {
 
     "NaI": {
         "radius": 0.0254,
-        "background": "Nal_Background_420s.Spe",
+        "background": "NaI_Background_420s.Spe",
 
         "distances": {
             0.1: {
@@ -103,8 +103,8 @@ Detectors = {
             },
             "Cs": {
                 -90: "NaI_Cs_90(2)_10cm_180s.Spe",
-                -45: "Nal_Cs_45(2)_10cm_180s.Spe",
-                45:  "Nal_Cs_45(1)_10cm_180s.Spe",
+                -45: "NaI_Cs_45(2)_10cm_180s.Spe",
+                45:  "NaI_Cs_45(1)_10cm_180s.Spe",
                 90:  "NaI_Cs_90(1)_10cm_180s.Spe"
             },
             "Co": {
