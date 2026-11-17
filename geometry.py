@@ -47,13 +47,13 @@ def cylinder_side(radius, length, distance, theta):
 
         numerator = max(
             0,
-            d*np.sin(theta)*np.cos(phi) - r
+            d*abs(np.sin(theta))*np.cos(phi) - r
         )
 
         denominator = (
             d**2 * np.sin(theta)**2
             + r**2
-            - 2*d*r*np.sin(theta)*np.cos(phi)
+            - 2*d*r*abs(np.sin(theta))*np.cos(phi)
             + (d*np.cos(theta) - z)**2
         )**1.5
 

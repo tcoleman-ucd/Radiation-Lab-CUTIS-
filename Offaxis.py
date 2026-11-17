@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from fitting import fit_roi, gaussian
+from geometry import cylinder_geometric_factor, square_geometric_factor
+from Efficiency import (get_emission_fraction, get_emission_fraction_error,
+                        extract_measurement_date, source_activity, SOURCE_PARAMETERS)
 ### We should also consider FWHM and peak height as functions of angle. - THomas
 plot_folder = "Plots"
 
@@ -61,7 +64,8 @@ def plot_fit_checks(spectra, fits, roi, name=""):
     axes[0][0].set_ylabel("Corrected CPS")
     fig.suptitle(name)
     plt.tight_layout()
-    filename = f"{name}keV.jpg"
+    os.makedirs(plot_folder, exist_ok=True)
+    filename = f"{name} ROI_{lo:.0f}-{hi:.0f}.jpg"
     fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -101,6 +105,7 @@ def analyse(peaks, spectra, calibration):
     ptt, ptt_err = area / total, area_err / total
 
     r = {"angles": angles, "energy": E, "centroid": mu,
+         "area": area, "area_err": area_err,
          "res": res, "res_err": res_err, "fwhm_keV": fwhm_keV, 
          "fwhm_keV_err": fwhm_keV_err,
          "height" : amp, "height_err": amp_err
@@ -141,10 +146,87 @@ def plot_comparison(all_r):
 
         fig.suptitle(f"{source} {energy:.1f} keV off-axis response")
         plt.tight_layout()
-        filename = f"{source}_{energy:.1f}keV.jpg"
+        detector_names = "_".join(sorted({det for det, _, _ in all_r}))
+        os.makedirs(plot_folder, exist_ok=True)
+        filename = f"{detector_names}_{source}_{energy:.1f}keV.jpg"
         fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
         plt.close(fig)
     
+
+
+def angular_geometric_factor(detector, distance, angle_degrees):
+    """Fraction of isotropically emitted photons incident on a detector face."""
+    theta = np.deg2rad(angle_degrees)
+    if detector.name in ("BGO", "NaI"):
+        return cylinder_geometric_factor(detector.radius, 0.0508,
+                                         distance, theta)
+    if detector.name == "CdTe":
+        return square_geometric_factor(0.003, 0.001, distance, theta)
+    raise ValueError(f"Unknown detector geometry: {detector.name}")
+
+
+def add_angular_efficiencies(detector, source, result, spectra, geometric_factors):
+    """From fitted peak count rates, compute absolute and intrinsic efficiencies."""
+    emission = get_emission_fraction(source, result["line_energy"])
+    emission_error = get_emission_fraction_error(source, result["line_energy"])
+    angles = result["angles"]
+    activity = np.array([source_activity(
+        extract_measurement_date(spectra[int(angle)].filename), source)
+        for angle in angles])
+    activity_error = activity * SOURCE_PARAMETERS[source]["accuracy"] / 100
+    G = np.array([geometric_factors[int(a)] for a in angles])
+
+    rates = result["area"]
+    rate_error = result["area_err"]
+    if np.any(rates <= 0) or np.any(G <= 0):
+        print(f"Warning: {detector.name} {source} {result['line_energy']:.1f}: "
+              "nonpositive peak rate or geometric factor; angular efficiencies omitted.")
+        return
+
+    abs_eff = rates / (activity * emission)
+    abs_err = abs_eff * np.sqrt((rate_error / rates)**2 +
+                                (activity_error / activity)**2 +
+                                (emission_error / emission)**2)
+    intrinsic = abs_eff / G
+    intrinsic_err = abs_err / G  # geometric uncertainties not available
+    result.update(geometry_factor=G,
+                  absolute_efficiency=abs_eff,
+                  absolute_efficiency_error=abs_err,
+                  intrinsic_efficiency=intrinsic,
+                  intrinsic_efficiency_error=intrinsic_err)
+
+
+def plot_angular_efficiencies(detector, source, energy, result):
+    """Plot G, absolute efficiency and intrinsic efficiency against angle."""
+    if "geometry_factor" not in result:
+        return
+
+    angles = result["angles"]
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+    columns = [
+        ("geometry_factor", None, "Geometric factor G"),
+        ("absolute_efficiency", "absolute_efficiency_error",
+         "Absolute photopeak efficiency"),
+        ("intrinsic_efficiency", "intrinsic_efficiency_error",
+         "Intrinsic photopeak efficiency"),
+    ]
+    for ax, (key, err_key, title) in zip(axes, columns):
+        if err_key is None:
+            ax.plot(angles, result[key], "o-")
+        else:
+            ax.errorbar(angles, result[key], yerr=result[err_key],
+                        fmt="o-", capsize=3)
+        ax.set(title=title, xlabel="Off-axis angle (degrees)")
+        ax.grid(alpha=0.3)
+    fig.suptitle(f"{detector.name} {source}: {energy:.1f} keV angular efficiencies")
+    fig.tight_layout()
+    os.makedirs(plot_folder, exist_ok=True)
+    for extension in ("pdf", "jpg"):
+        fig.savefig(os.path.join(
+            plot_folder,
+            f"Offaxis_efficiencies_{detector.name}_{source}_{energy:.1f}keV.{extension}"
+        ), dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 
 def run_off_axis(detector, source):
@@ -152,14 +234,26 @@ def run_off_axis(detector, source):
 
     spectra = detector.off_axis_spectra[source]
 
+    geometric_factors = {
+        angle: angular_geometric_factor(detector, spectrum.distance, angle)
+        for angle, spectrum in spectra.items()
+    }
+
     out = {}
     for job in get_rois(detector, source):
         fits = fit_all_angles(spectra, job)
+        if 0 not in fits:
+            print(f"{detector.name} {source}: no on-axis fit; skipping this ROI.")
+            continue
         plot_fit_checks(spectra, fits, job["roi"], f"{detector.name} {source}")
 
         for j, energy in enumerate(job["energies"]):
             peaks = {a: f["components"][j] for a, f in fits.items()}
             r = analyse(peaks, spectra, detector.calibration)
+            r["line_energy"] = energy
+            # Keep the existing get_rois() identification method as requested.
+            add_angular_efficiencies(detector, source, r, spectra, geometric_factors)
+            plot_angular_efficiencies(detector, source, energy, r)
             out[energy] = r
 
             print(f"\n{detector.name} {source} {energy:.1f} keV")

@@ -81,8 +81,9 @@ def energy_to_channel(energy, calibration):
     return (energy - calibration["intercept"]) / calibration["gradient"]
 
 
-def plot_calibration(calibration):
+def plot_calibration(calibration, name="Detector"):
     plot_folder = "Plots"
+    os.makedirs(plot_folder, exist_ok=True)
     channels = calibration["channels"]
     channel_errors = calibration["channel_errors"]
     energies = calibration["energies"]
@@ -133,7 +134,7 @@ def plot_calibration(calibration):
         print("At least four calibration points are needed to compare a quadratic fit.")
 
     ax1.set_ylabel("Energy (keV)")
-    ax1.set_title("Linear and Quadratic Energy Calibration")
+    ax1.set_title(f"{name}: linear and quadratic energy calibration")
     ax1.grid(alpha=0.3)
     ax1.legend()
 
@@ -142,6 +143,7 @@ def plot_calibration(calibration):
     ax2.grid(alpha=0.3)
     ax2.legend()
 
-    file_path = os.path.join(plot_folder, "Calibration.jpg")
-    plt.savefig(file_path, format = "jpg", dpi=300, bbox_inches = "tight")
+    for extension in ("jpg", "pdf"):
+        file_path = os.path.join(plot_folder, f"Calibration_{name}.{extension}")
+        plt.savefig(file_path, dpi=300, bbox_inches="tight")
     plt.close()

@@ -48,7 +48,21 @@ def read_mca(filename):
         spectrum_data = file.readlines()
 
     counts = []
-    time = float(spectrum_data[8].replace(' ', '').replace('REAL_TIME-', ''))
+
+    def find_time(key):
+        for line in spectrum_data:
+            if line.upper().startswith(key):
+                _, separator, value = line.partition("-")
+                if separator:
+                    return float(value.strip())
+        return None
+
+    time = find_time("LIVE_TIME")
+    if time is None:
+        time = find_time("REAL_TIME")
+        if time is None:
+            raise ValueError(f"No LIVE_TIME or REAL_TIME found in {filename}")
+        print(f"Warning: {filename} has no LIVE_TIME; using REAL_TIME instead.")
     
     beginning = spectrum_data.index("<<DATA>>\n") + 1
     

@@ -36,6 +36,8 @@ class Detector:
         self.unidentified_peaks = []
         self.resolution = None
         self.efficiency = None
+        self.efficiency_fit = None
+        self.distance_efficiency = {}
         self.off_axis_results = {}
 
     def calibrate(self, corrected=True, show_plot=True, identification=None):
@@ -63,6 +65,10 @@ class Detector:
         self.calibration_peak_records = []
         self.unidentified_peaks = []
         self.resolution = None
+        self.efficiency = None
+        self.efficiency_fit = None
+        self.distance_efficiency = {}
+        self.off_axis_results = {}
 
         for source, spectrum in self.spectra.items():
             if source not in self.known_energies:
@@ -174,7 +180,7 @@ class Detector:
         print(f"Unidentified peaks: {len(unidentified_peaks)}")
 
         if show_plot:
-            draw_calibration(self.calibration)
+            draw_calibration(self.calibration, name=self.name)
         return self.calibration
 
     def channel_to_energy(self, channel):
@@ -190,7 +196,7 @@ class Detector:
     def plot_calibration(self):
         if self.calibration is None:
             raise ValueError("Calibrate the detector first.")
-        draw_calibration(self.calibration)
+        draw_calibration(self.calibration, name=self.name)
 
     def calculate_resolution(self, title=None, show=True):
         """Calculate and store the detector's energy resolution."""
@@ -221,9 +227,11 @@ class Detector:
                 "Run calculate_absolute_efficiency() first."
             )
 
-        from Efficiency import intrinsic_eff, plot_intrinsic_efficiency, calculate_distance_efficiencies
+        from Efficiency import (intrinsic_eff, fit_intrinsic_efficiency,
+                                plot_intrinsic_efficiency, calculate_distance_efficiencies)
 
         self.efficiency = intrinsic_eff(self)
+        self.efficiency_fit = fit_intrinsic_efficiency(self)
         self.distance_efficiency = calculate_distance_efficiencies(self)
 
         if plot:

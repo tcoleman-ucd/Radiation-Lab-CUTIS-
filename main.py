@@ -70,7 +70,7 @@ Detectors = {
     },
 
     "NaI": {
-        "radius": 0.02921,
+        "radius": 0.0254,
         "background": "Nal_Background_420s.Spe",
 
         "distances": {
@@ -270,14 +270,14 @@ def make_detector(name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("Calibration", nargs ="+")
-    
+    parser.add_argument("--skip-off-axis", action="store_true")
+
     args = parser.parse_args()
   
     all_r={}
     if len(args.Calibration) > 1:
         for name in args.Calibration:
             source_keys = list(Detectors[name]["distances"][0.1].keys())
-            print(Detectors[name]["sources"]["Ba"])
             det = make_detector(name)
             det.calibrate()
         
@@ -285,8 +285,9 @@ def main():
             det.calculate_absolute_efficiency()
             det.calculate_intrinsic_efficiency()
 
-            for source in source_keys:
-                det.calculate_off_axis(source)
+            if not args.skip_off_axis:
+                for source in source_keys:
+                    det.calculate_off_axis(source)
 
 
   
@@ -298,8 +299,9 @@ def main():
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
             det.calculate_intrinsic_efficiency()
-            for source in source_keys:
-                det.calculate_off_axis(source)
+            if not args.skip_off_axis:
+                for source in source_keys:
+                    det.calculate_off_axis(source)
             
         
 
