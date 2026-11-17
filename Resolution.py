@@ -15,7 +15,7 @@ def resolution_model(E, a, b, c):
     return a + b * E + c * E**2
 
 
-def resolution(detector, title=None, show=True):
+def resolution(detector, title=None):
     """Calculate R=FWHM/E, fit the manual's model and save a labelled plot."""
     if detector.calibration is None:
         raise ValueError("Calibrate the detector first.")
@@ -120,9 +120,8 @@ def resolution(detector, title=None, show=True):
     for extension in ("pdf", "jpg"):
         fig.savefig(PLOT_DIR / f"Resolution_{detector.name}.{extension}",
                     dpi=300, bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(fig)
+        plt.close(fig)
+    
 
     return {"params": params, "errs": errors, "covariance": covariance,
             "E": E, "R": R, "R_err": R_error,

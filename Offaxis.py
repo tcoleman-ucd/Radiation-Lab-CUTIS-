@@ -65,7 +65,7 @@ def plot_fit_checks(spectra, fits, roi, name=""):
     fig.suptitle(name)
     plt.tight_layout()
     os.makedirs(plot_folder, exist_ok=True)
-    filename = f"{name} ROI_{lo:.0f}-{hi:.0f}.jpg"
+    filename = f"{name} ROI.jpg"
     fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -110,7 +110,7 @@ def analyse(peaks, spectra, calibration):
          "fwhm_keV_err": fwhm_keV_err,
          "height" : amp, "height_err": amp_err
          }
-    for key, (x, err) in {"eff": (area, area_err), "ptt": (ptt, ptt_err),
+    for key, (x, err) in {"area": (area, area_err), "ptt": (ptt, ptt_err),
                           "res": (res, res_err), "mu": (mu, mu_err),
                           "height": (amp, amp_err), "fwhm":(fwhm_keV,fwhm_keV_err)}.items():
         r["rel_" + key], r["rel_" + key + "_err"] = normalise(x, err,i0)
@@ -118,7 +118,7 @@ def analyse(peaks, spectra, calibration):
 
 
 TITLES = {
-    "rel_eff": "Photopeak count rate",
+    "rel_area": "Photopeak count rate",
     "rel_ptt": "Peak-to-total ratio",
     "rel_res": "Energy resolution (ΔE/E)",
     "rel_mu":  "Peak centroid (control)",
@@ -188,37 +188,56 @@ def add_angular_efficiencies(detector, source, result, spectra, geometric_factor
                                 (activity_error / activity)**2 +
                                 (emission_error / emission)**2)
     intrinsic = abs_eff / G
-    intrinsic_err = abs_err / G  # geometric uncertainties not available
+    intrinsic_err = abs_err / G  
+
+   
+    i0 = int(np.where(angles == 0)[0][0])
+
+    
+    stat_abs_err = abs_eff * rate_error / rates
+    stat_int_err = intrinsic * rate_error / rates
+
+    rel_G, rel_G_err = normalise(G, np.zeros_like(G), i0)
+    rel_abs, rel_abs_err = normalise(abs_eff, stat_abs_err, i0)
+    rel_int, rel_int_err = normalise(intrinsic, stat_int_err, i0)
+
     result.update(geometry_factor=G,
                   absolute_efficiency=abs_eff,
                   absolute_efficiency_error=abs_err,
                   intrinsic_efficiency=intrinsic,
-                  intrinsic_efficiency_error=intrinsic_err)
+                  intrinsic_efficiency_error=intrinsic_err,
+                  rel_geometry_factor=rel_G,
+                  rel_geometry_factor_err=rel_G_err,
+                  rel_absolute_efficiency=rel_abs,
+                  rel_absolute_efficiency_err=rel_abs_err,
+                  rel_intrinsic_efficiency=rel_int,
+                  rel_intrinsic_efficiency_err=rel_int_err)
 
 
 def plot_angular_efficiencies(detector, source, energy, result):
-    """Plot G, absolute efficiency and intrinsic efficiency against angle."""
-    if "geometry_factor" not in result:
+    """Plot G, absolute and intrinsic efficiency against angle, relative to 0 deg."""
+    if "rel_geometry_factor" not in result:
         return
 
     angles = result["angles"]
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
     columns = [
-        ("geometry_factor", None, "Geometric factor G"),
-        ("absolute_efficiency", "absolute_efficiency_error",
+        ("rel_geometry_factor", "rel_geometry_factor_err",
+         "Geometric factor G"),
+        ("rel_absolute_efficiency", "rel_absolute_efficiency_err",
          "Absolute photopeak efficiency"),
-        ("intrinsic_efficiency", "intrinsic_efficiency_error",
+        ("rel_intrinsic_efficiency", "rel_intrinsic_efficiency_err",
          "Intrinsic photopeak efficiency"),
     ]
     for ax, (key, err_key, title) in zip(axes, columns):
-        if err_key is None:
-            ax.plot(angles, result[key], "o-")
-        else:
-            ax.errorbar(angles, result[key], yerr=result[err_key],
-                        fmt="o-", capsize=3)
-        ax.set(title=title, xlabel="Off-axis angle (degrees)")
+        ax.errorbar(angles, result[key], yerr=result[err_key],
+                    fmt="o-", capsize=3)
+        ax.axhline(1, color="k", ls="--", alpha=0.4)
+        ax.set(title=title, xlabel="Off-axis angle (degrees)",
+               ylabel="Relative to 0°")
         ax.grid(alpha=0.3)
-    fig.suptitle(f"{detector.name} {source}: {energy:.1f} keV angular efficiencies")
+    fig.suptitle(f"{detector.name} {source}: {energy:.1f} keV "
+                 "normalised angular efficiencies")
     fig.tight_layout()
     os.makedirs(plot_folder, exist_ok=True)
     for extension in ("pdf", "jpg"):
@@ -257,9 +276,10 @@ def run_off_axis(detector, source):
             out[energy] = r
 
             print(f"\n{detector.name} {source} {energy:.1f} keV")
-            print("Angle  RelEff   RelP/T   R (%)   Centroid   Amplitude    FWHM")
+            print("Angle  RelArea   RelP/T   R (%)   Centroid   Amplitude        FWHM          G     AbsEff     IntEff")
             for i, a in enumerate(r["angles"]):
-                print(f"{a:5.0f}  {r['rel_eff'][i]:6.3f}  {r['rel_ptt'][i]:6.3f}  "
-                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:10.2f}")
+                print(f"{a:5.0f}  {r['rel_area'][i]:6.3f}  {r['rel_ptt'][i]:6.3f}  "
+                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:12.2f}  "
+                      f"{r['geometry_factor'][i]:9.3e}  {r['absolute_efficiency'][i]:9.3e}  {r['intrinsic_efficiency'][i]:9.3e}")
     plt.show()      # show the fit checks for this source
     return out

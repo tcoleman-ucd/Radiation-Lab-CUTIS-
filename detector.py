@@ -205,7 +205,7 @@ class Detector:
         from Resolution import resolution as fit_resolution
         if title is None:
             title = f"{self.name} Resolution"
-        self.resolution = fit_resolution(self, title=title, show=show)
+        self.resolution = fit_resolution(self, title=title)
         return self.resolution
 
     def calculate_absolute_efficiency(self, plot=True):
