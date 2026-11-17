@@ -25,15 +25,15 @@ def resolution(detector, title="Resolution",show=True):
     fwhm = np.array([pk["fwhm"] for pk in peaks])
     fwhm_err = np.array([pk["fwhm_error"] for pk in peaks])
 
-    #if cal.get("kind", "linear") == "linear":
-    m= cal["gradient"]
-    #else:
-    #    p = cal["quadratic"]["coefficients"]
-     #   slope = 2 * p[0] * channels + p[1]
+    if cal.get("kind", "linear") == "linear":
+        slope = cal["gradient"]
+    else:
+        p = cal["quadratic"]["coefficients"]
+        slope = 2 * p[0] * channels + p[1]
 
-    dE = fwhm * m                  # FWHM in keV
+    dE = fwhm * slope                  # FWHM in keV
 
-    dE_err = fwhm_err * m
+    dE_err = fwhm_err * slope
     R, R_err = dE / E, dE_err / E
     
     
@@ -55,6 +55,10 @@ def resolution(detector, title="Resolution",show=True):
     for n, v, e in zip("abc", popt, perr):
         print(f"  {n} = {v:.4g} +/- {e:.2g}")
     
+    E_fit = detector.channel_to_energy(channels)
+        
+    E_fit_err = slope * channel_errs
+
 
     detectors, isotopes = [], []
     for pk in peaks:
@@ -63,9 +67,7 @@ def resolution(detector, title="Resolution",show=True):
         isotopes.append(names[1])
 
     
-    E_fit = detector.channel_to_energy(channels)
     
-    E_fit_err = m * channel_errs
 
     
 
