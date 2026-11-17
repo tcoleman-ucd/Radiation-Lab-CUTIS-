@@ -322,5 +322,5 @@ def interactive_fit(spectrum, corrected=True, known_energies=None,
     return run_interactive_fit(
         spectrum,
         corrected=corrected,
-        known_energies=known_energies if identify_in_plot else None,
+        reference_energies= known_energies if identify_in_plot else None,
     )

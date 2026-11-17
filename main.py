@@ -4,6 +4,7 @@ from pathlib import Path
 
 from spectra import Spectrum
 from detector import Detector
+from Efficiency import fit_distance_peaks, absolute_efficiency, intrinsic_eff
 import argparse
 
 def find_file(filename):
@@ -26,17 +27,18 @@ Detectors = {
         "background": "BGO_Background_180s.Spe",
 
         "distances": {
-            "Am": 0.1,
-            "Ba": 0.1,
-            "Cs": 0.1,
-            "Co": 0.1
-        },
-
-        "sources": {
-            "Am": "BGO_Am_0_10cm_180s.Spe",
-            "Ba": "BGO_Ba_0_10cm_300s.Spe",
-            "Cs": "BGO_Cs_0_10cm_180s.Spe",
-            "Co": "BGO_Co_0_10cm_420s.Spe"
+            0.1: {
+                "Am": "BGO_Am_0_10cm_180s.Spe",
+                "Ba": "BGO_Ba_0_10cm_300s.Spe",
+                "Cs": "BGO_Cs_0_10cm_180s.Spe",
+                "Co": "BGO_Co_0_10cm_420s.Spe"
+            },
+            0.2: {
+                "Am": "BGO_Am_0_20cm_180s.Spe",
+                "Ba": "BGO_Ba_0_20cm_300s.Spe",
+                "Cs": "BGO_Cs_0_20cm_180s.Spe",
+                "Co": "BGO_Co_0_20cm_420s.Spe"
+            }
         },
 
         "off_axis": {
@@ -72,17 +74,18 @@ Detectors = {
         "background": "Nal_Background_420s.Spe",
 
         "distances": {
-            "Am": 0.1,
-            "Ba": 0.1,
-            "Cs": 0.1,
-            "Co": 0.1
-        },
-
-        "sources": {
-            "Am": "NaI_Am_0_10cm_180s.Spe",
-            "Ba": "NaI_Ba_0_10cm_300s.Spe",
-            "Cs": "NaI_Cs_0_10cm_180s.Spe",
-            "Co": "NaI_Co_0_10cm_420s.Spe"
+            0.1: {
+                "Am": "NaI_Am_0_10cm_180s.Spe",
+                "Ba": "NaI_Ba_0_10cm_300s.Spe",
+                "Cs": "NaI_Cs_0_10cm_180s.Spe",
+                "Co": "NaI_Co_0_10cm_420s.Spe"
+            },
+            0.2: {
+                "Am": "NaI_Am_0_20cm_180s.Spe",
+                "Ba": "NaI_Ba_0_20cm_300s.Spe",
+                "Cs": "NaI_Cs_0_20cm_180s.Spe",
+                "Co": "NaI_Co_0_20cm_420s.Spe"
+            }
         },
 
         "off_axis": {
@@ -117,19 +120,20 @@ Detectors = {
         "radius": 0.005,
         "background": "CdTe_Background_300s.mca",
 
-        "distances": {
-            "Am": 0.1,
-            "Ba": 0.1,
-            "Cs": 0.1,
-            "Co": 0.1
-        },
-
-        "sources": {
+    "distances": {
+        0.1: {
             "Am": "CdTe_Am_0_10cm_180s.mca",
             "Ba": "CdTe_Ba_0_10cm_300s.mca",
             "Cs": "CdTe_Cs_0_10cm_180s.mca",
             "Co": "CdTe_Co_0_10cm_420s.mca"
         },
+        0.2: {
+            "Am": "CdTe_Am_0_20cm_180s.mca",
+            "Ba": "CdTe_Ba_0_20cm_300s.mca",
+            "Cs": "CdTe_Cs_0_20cm_180s.mca",
+            "Co": "CdTe_Co_0_20cm_420s.mca"
+        }
+    },
 
         "off_axis": {
             "Am": {
@@ -145,7 +149,7 @@ Detectors = {
                 90:  "CdTe_Ba_90(1)_10cm_300s.mca"
             },
             "Cs": {
-                -90: "CdTe_Cs_90(2)_20cm_180s.mca",
+                -90: "CdTe_Cs_90(2)_10cm_180s.mca",
                 -45: "CdTe_Cs_45(2)_10cm_180s.mca",
                 45:  "CdTe_Cs_45(1)_10cm_180s.mca",
                 90:  "CdTe_Cs_90(1)_10cm_180s.mca"
@@ -189,19 +193,19 @@ Known_Energies = {
     ]
 }
 
-
-
-
 def make_detector(name):
 
     background_filename = Detectors[name]["background"]
-    files = Detectors[name]["sources"]
+
+    # Use the first distance for calibration (10 cm)
+    reference_distance = next(iter(Detectors[name]["distances"]))
+    files = Detectors[name]["distances"][reference_distance]
 
     background_path = next(Path(".").rglob(background_filename))
 
     spectra = {}
 
-    # Load on-axis spectra
+    # Load on-axis calibration spectra
     for source, filename in files.items():
 
         file_path = next(Path(".").rglob(filename))
@@ -209,8 +213,28 @@ def make_detector(name):
         spectra[source] = Spectrum.from_file(
             file_path,
             background_file=background_path,
-            distance=Detectors[name]["distances"][source]
+            distance=reference_distance
         )
+
+    # Load additional distance spectra
+    distance_spectra = {}
+
+    for distance, files in Detectors[name]["distances"].items():
+
+        if distance == reference_distance:
+            continue
+
+        distance_spectra[distance] = {}
+
+        for source, filename in files.items():
+
+            file_path = find_file(filename)
+
+            distance_spectra[distance][source] = Spectrum.from_file(
+                file_path,
+                background_file=background_path,
+                distance=distance
+            )
 
     # Load off-axis spectra
     off_axis_spectra = {}
@@ -227,7 +251,7 @@ def make_detector(name):
             off_axis_spectra[source][angle] = Spectrum.from_file(
                 file_path,
                 background_file=background_path,
-                distance=Detectors[name]["distances"][source]
+                distance=reference_distance
             )
 
     return Detector(
@@ -235,8 +259,11 @@ def make_detector(name):
         spectra,
         Known_Energies,
         radius=Detectors[name]["radius"],
-        off_axis_spectra=off_axis_spectra
+        off_axis_spectra=off_axis_spectra,
+        distance_spectra=distance_spectra
     )
+
+
 
 
 
@@ -249,7 +276,7 @@ def main():
     all_r={}
     if len(args.Calibration) > 1:
         for name in args.Calibration:
-            source_keys = list(Detectors[name]["sources"].keys())
+            source_keys = list(Detectors[name]["distances"][0.1].keys())
             print(Detectors[name]["sources"]["Ba"])
             det = make_detector(name)
             det.calibrate()
@@ -257,6 +284,7 @@ def main():
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
             det.calculate_intrinsic_efficiency()
+
             for source in source_keys:
                 det.calculate_off_axis(source)
 
@@ -264,11 +292,12 @@ def main():
   
     else:
             name = args.Calibration[0]
-            source_keys = list(Detectors[name]["sources"].keys())
+            source_keys = list(Detectors[name]["distances"][0.1].keys())
             det = make_detector(name)
             det.calibrate()
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
+            det.calculate_intrinsic_efficiency()
             for source in source_keys:
                 det.calculate_off_axis(source)
             

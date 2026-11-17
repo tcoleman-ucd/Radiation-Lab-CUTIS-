@@ -275,7 +275,7 @@ def interactive_fit(spectrum, corrected=True, reference_energies=None):
             accept_identification(energy)
 
         # Run on_assign when the confirmation button is clicked
-        assign_button.on_clicked(on_assign)
+        confirm_button.on_clicked(on_assign)
 
     def perform_fit(lower, upper, fit_n, guesses=None):
 

@@ -11,12 +11,13 @@ from calibration import (
 
 class Detector:
 
-    def __init__(self, name, spectra, known_energies, radius, off_axis_spectra=None):
+    def __init__(self, name, spectra, known_energies, radius, off_axis_spectra=None, distance_spectra=None):
         """Store source spectra and known photopeak energies (in keV)."""
         self.name = name
         self.radius = radius
         self.spectra = dict(spectra)
         self.off_axis_spectra = (off_axis_spectra if off_axis_spectra is not None else {})
+        self.distance_spectra = (distance_spectra if distance_spectra is not None else {})
 
         self.known_energies = {
             source: list(energies)
@@ -220,9 +221,10 @@ class Detector:
                 "Run calculate_absolute_efficiency() first."
             )
 
-        from Efficiency import intrinsic_eff, plot_intrinsic_efficiency
+        from Efficiency import intrinsic_eff, plot_intrinsic_efficiency, calculate_distance_efficiencies
 
         self.efficiency = intrinsic_eff(self)
+        self.distance_efficiency = calculate_distance_efficiencies(self)
 
         if plot:
             plot_intrinsic_efficiency(self)
