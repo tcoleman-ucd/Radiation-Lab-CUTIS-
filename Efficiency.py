@@ -229,61 +229,61 @@ def extract_measurement_date(filename):
     return measurement_date
 
 
-# ============================================================
-# SELECT A PEAK
-# ============================================================
+# # ============================================================
+# # SELECT A PEAK
+# # ============================================================
 
-def select_peak(detector, source):
-    """
-    Display fitted peaks for a source and ask the user
-    which peak should be used for efficiency.
-    """
+# def select_peak(detector, source):
+#     """
+#     Display fitted peaks for a source and ask the user
+#     which peak should be used for efficiency.
+#     """
 
-    records = [
-        peak
-        for peak in detector.calibration_peak_records
-        if peak["isotope"] == source
-    ]
+#     records = [
+#         peak
+#         for peak in detector.calibration_peak_records
+#         if peak["isotope"] == source
+#     ]
 
-    if not records:
-        raise ValueError(
-            f"No fitted calibration peaks found for {source}."
-        )
+#     if not records:
+#         raise ValueError(
+#             f"No fitted calibration peaks found for {source}."
+#         )
 
-    records = sorted(
-        records,
-        key=lambda peak: peak["energy"]
-    )
+#     records = sorted(
+#         records,
+#         key=lambda peak: peak["energy"]
+#     )
 
-    print("\nAvailable fitted peaks")
-    print("-" * 65)
+#     print("\nAvailable fitted peaks")
+#     print("-" * 65)
 
-    for i, peak in enumerate(records, 1):
+#     for i, peak in enumerate(records, 1):
 
-        print(
-            f"{i}. Energy: {peak['energy']:.3f} keV | "
-            f"Centroid: {peak['centroid']:.2f} channels | "
-            f"Count rate: {peak['area']:.3f} CPS"
-        )
+#         print(
+#             f"{i}. Energy: {peak['energy']:.3f} keV | "
+#             f"Centroid: {peak['centroid']:.2f} channels | "
+#             f"Count rate: {peak['area']:.3f} CPS"
+#         )
 
-    print("-" * 65)
+#     print("-" * 65)
 
-    while True:
+#     while True:
 
-        answer = input(
-            "\nSelect the peak number for efficiency calculation: "
-        ).strip()
+#         answer = input(
+#             "\nSelect the peak number for efficiency calculation: "
+#         ).strip()
 
-        try:
-            choice = int(answer)
+#         try:
+#             choice = int(answer)
 
-            if 1 <= choice <= len(records):
-                return records[choice - 1]
+#             if 1 <= choice <= len(records):
+#                 return records[choice - 1]
 
-            print("Please select one of the listed peaks.")
+#             print("Please select one of the listed peaks.")
 
-        except ValueError:
-            print("Please enter a valid peak number.")
+#         except ValueError:
+#             print("Please enter a valid peak number.")
 
 
 # ============================================================
