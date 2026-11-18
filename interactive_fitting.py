@@ -62,27 +62,27 @@ def interactive_fit(spectrum, corrected=True):
 
     ax.grid(alpha=0.3)
 
-    # Instructions
+    # # Instructions
 
-    instruction = (
-        "Click and drag to select an ROI\n"
-        "1: Single Gaussian | 2: Double Gaussian\n"
-        "Double Gaussian: select ROI, then click each peak\n"
-        "ENTER: Finish | BACKSPACE: Undo | ESC: Cancel/Finish"
-    )
+    # instruction = (
+    #     "Click and drag to select an ROI\n"
+    #     "1: Single Gaussian | 2: Double Gaussian\n"
+    #     "Double Gaussian: select ROI, then click each peak\n"
+    #     "ENTER: Finish | BACKSPACE: Undo | ESC: Cancel/Finish"
+    # )
 
-    instruction_text = ax.text(
-        0.02,
-        0.96,
-        instruction,
-        transform=ax.transAxes,
-        verticalalignment="top",
-        fontsize=9,
-        bbox=dict(
-            facecolor="white",
-            alpha=0.8
-        )
-    )
+    # instruction_text = ax.text(
+    #     0.02,
+    #     0.96,
+    #     instruction,
+    #     transform=ax.transAxes,
+    #     verticalalignment="top",
+    #     fontsize=9,
+    #     bbox=dict(
+    #         facecolor="white",
+    #         alpha=0.8
+    #     )
+    # )
 
     # Store plot artists for each ROI
 
@@ -104,7 +104,7 @@ def interactive_fit(spectrum, corrected=True):
         guess_artists.clear()
 
         selector.set_active(True)
-        instruction_text.set_text(instruction)
+       # instruction_text.set_text(instruction)
         fig.canvas.draw_idle()
 
     def on_select(xmin, xmax):
@@ -128,10 +128,10 @@ def interactive_fit(spectrum, corrected=True):
         guess_artists.append(
             ax.axvspan(lower, upper, color="orange", alpha=0.10)
         )
-        instruction_text.set_text(
-            "Double Gaussian: click the approximate centre of peak 1, "
-            "then peak 2\nESC/BACKSPACE: Cancel selection"
-        )
+        # instruction_text.set_text(
+        #     "Double Gaussian: click the approximate centre of peak 1, "
+        #     "then peak 2\nESC/BACKSPACE: Cancel selection"
+        # )
         fig.canvas.draw_idle()
         print("\nClick the approximate centre of each of the two peaks.")
 
