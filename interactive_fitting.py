@@ -1,5 +1,6 @@
 """Interactive ROI selection, peak fitting and optional energy identification."""
-
+("Level 2 Ai was used in the development of this code "
+ "i.e. for brainstorming and exploring the matplotlib widgets")
 from pathlib import Path
 
 import numpy as np

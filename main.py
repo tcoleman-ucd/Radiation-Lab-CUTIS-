@@ -280,7 +280,6 @@ def main():
             source_keys = list(Detectors[name]["distances"][0.1].keys())
             det = make_detector(name)
             det.calibrate()
-        
             det.calculate_resolution()
             det.calculate_absolute_efficiency()
             det.calculate_intrinsic_efficiency()
@@ -302,21 +301,6 @@ def main():
             if not args.skip_off_axis:
                 for source in source_keys:
                     det.calculate_off_axis(source)
-            
-        
-
-
-
-
-    # bgo = make_detector("NaI")
-
-
-
-  
-
-    # print(bgo.calculate_absolute_efficiency())
-
-    # print(bgo.calculate_intrinsic_efficiency())
 
 
 
