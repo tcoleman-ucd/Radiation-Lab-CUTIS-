@@ -15,6 +15,23 @@ def resolution_model(E, a, b, c):
     return a + b * E + c * E**2
 
 
+def with_error(value, error, sig=2):
+    
+    if not np.isfinite(value):
+        return "n/a"
+    if not np.isfinite(error) or error <= 0:
+        return f"{value:.4g} ± n/a"
+
+  
+    if value != 0 and (abs(value) >= 1e5 or abs(value) < 1e-3):
+        power = int(np.floor(np.log10(abs(value))))
+        scale = 10.0**power
+        return f"({with_error(value / scale, error / scale, sig)})e{power:+d}"
+
+    decimals = max(sig - 1 - int(np.floor(np.log10(error))), 0)
+    return f"{value:.{decimals}f} ± {error:.{decimals}f}"
+
+
 def resolution(detector, title=None):
     """Calculate R=FWHM/E, fit the manual's model and save a labelled plot."""
     if detector.calibration is None:
@@ -76,13 +93,17 @@ def resolution(detector, title=None):
 
     if params is not None:
         print(f"\n{detector.name} resolution model (FWHM^2 = a + bE + cE^2):")
-        for name, value, uncertainty in zip("abc", params, errors):
-            print(f"  {name} = {value:.5g} +/- {uncertainty:.2g}")
+        for name, unit, value, uncertainty in zip(
+                "abc", ("keV^2", "keV", ""), params, errors):
+            print(f"  {name} = {with_error(value, uncertainty)} {unit}".rstrip())
 
     print(f"\n{detector.name} photopeak resolutions:")
-    print("Source   E (keV)    FWHM (keV)    R (%)    sigma_R (%)")
-    for source, energy, width, r, err in zip(sources, E, dE, R, R_error):
-        print(f"{source:6} {energy:10.3f} {width:12.3f} {r*100:8.3f} {err*100:12.3f}")
+    print(f"{'Source':8}{'E (keV)':>12}{'FWHM (keV)':>20}{'R = FWHM/E (%)':>22}")
+    for source, energy, width, width_err, r, r_err in zip(
+            sources, E, dE, dE_error, R, R_error):
+        print(f"{source:8}{energy:12.3f}"
+              f"{with_error(width, width_err):>20}"
+              f"{with_error(100 * r, 100 * r_err):>22}")
 
     fig, ax = plt.subplots(figsize=(8, 5.5))
     for source in dict.fromkeys(sources):
@@ -104,9 +125,10 @@ def resolution(detector, title=None):
         E_line = np.logspace(
             np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200
         )
-        R_line = np.sqrt(resolution_model(E_line, *params)) / E_line
+        # Multiply by 100 so the curve is in % like the data points.
+        R_line = 100 * np.sqrt(resolution_model(E_line, *params)) / E_line
         ax.plot(
-            E_line, 100 * R_line, "r-", lw=2,
+            E_line, R_line, "r-", lw=2,
             label=r"Fit: $R=\sqrt{aE^{-2}+bE^{-1}+c}$"
         )
 
@@ -120,8 +142,7 @@ def resolution(detector, title=None):
     for extension in ("pdf", "jpg"):
         fig.savefig(PLOT_DIR / f"Resolution_{detector.name}.{extension}",
                     dpi=300, bbox_inches="tight")
-        plt.close(fig)
-    
+    plt.close(fig)
 
     return {"params": params, "errs": errors, "covariance": covariance,
             "E": E, "R": R, "R_err": R_error,

@@ -8,6 +8,31 @@ from Efficiency import (get_emission_fraction, get_emission_fraction_error,
 ### We should also consider FWHM and peak height as functions of angle. - THomas
 plot_folder = "Plots"
 
+
+def with_error(value, error, sig=2):
+    """
+    Format 'value ± error' with the error rounded to `sig` significant
+    figures and the value rounded to the same decimal place, e.g.
+    with_error(12.3456, 0.0432) -> '12.346 ± 0.043'.
+    Very large or very small numbers use a shared power of ten.
+    A zero error (e.g. the 0 deg reference point) prints the value alone.
+    """
+    if not np.isfinite(value):
+        return "n/a"
+    if error == 0:
+        return f"{value:.4g}"
+    if not np.isfinite(error):
+        return f"{value:.4g} ± n/a"
+
+    if value != 0 and (abs(value) >= 1e5 or abs(value) < 1e-3):
+        power = int(np.floor(np.log10(abs(value))))
+        scale = 10.0**power
+        return f"({with_error(value / scale, error / scale, sig)})e{power:+d}"
+
+    decimals = max(sig - 1 - int(np.floor(np.log10(abs(error)))), 0)
+    return f"{value:.{decimals}f} ± {error:.{decimals}f}"
+
+
 def get_rois(detector, source):
 
     fit_results = detector.spectra[source].fit_results
@@ -105,6 +130,7 @@ def analyse(peaks, spectra, calibration):
     ptt, ptt_err = area / total, area_err / total
 
     r = {"angles": angles, "energy": E, "centroid": mu,
+         "centroid_err": mu_err,
          "area": area, "area_err": area_err,
          "res": res, "res_err": res_err, "fwhm_keV": fwhm_keV, 
          "fwhm_keV_err": fwhm_keV_err,
@@ -131,14 +157,14 @@ def plot_comparison(all_r):
     
     for source, energy in sorted({(s, e) for _, s, e in all_r}):
         fig, axes = plt.subplots(2, 3, figsize=(16, 8))
-
+        detector_names = "_".join(sorted({det for det, _, _ in all_r}))
         for ax, (key, title) in zip(axes.flat, TITLES.items()):
             for (det, s, e), r in all_r.items():
                 if (s, e) == (source, energy):
                     ax.errorbar(r["angles"], r[key], yerr=r[key + "_err"],
                                 fmt="o-", capsize=4, label=det)
             ax.axhline(1, color="k", ls="--", alpha=0.4)
-            ax.set_title(title)
+            ax.set_title(f"{detector_names} {title}")
             ax.set_xlabel("Off-axis angle θ (deg)")
             ax.set_ylabel("Relative to 0°")
             ax.grid(alpha=0.3)
@@ -146,7 +172,7 @@ def plot_comparison(all_r):
 
         fig.suptitle(f"{source} {energy:.1f} keV off-axis response")
         plt.tight_layout()
-        detector_names = "_".join(sorted({det for det, _, _ in all_r}))
+        
         os.makedirs(plot_folder, exist_ok=True)
         filename = f"{detector_names}_{source}_{energy:.1f}keV.jpg"
         fig.savefig(os.path.join(plot_folder, filename), dpi=300, bbox_inches="tight")
@@ -276,10 +302,19 @@ def run_off_axis(detector, source):
             out[energy] = r
 
             print(f"\n{detector.name} {source} {energy:.1f} keV")
-            print("Angle  RelArea   RelP/T   R (%)   Centroid   Amplitude        FWHM          G     AbsEff     IntEff")
+            print(f"{'Angle':>5}  {'RelArea':>14}  {'RelP/T':>14}  {'R (%)':>14}  "
+                  f"{'Centroid':>16}  {'Amplitude':>16}  {'FWHM (keV)':>14}  "
+                  f"{'G':>10}  {'AbsEff':>20}  {'IntEff':>20}")
             for i, a in enumerate(r["angles"]):
-                print(f"{a:5.0f}  {r['rel_area'][i]:6.3f}  {r['rel_ptt'][i]:6.3f}  "
-                      f"{r['res'][i]:6.2f}  {r['centroid'][i]:8.2f}  {r['height'][i]:8.2f} {r['fwhm_keV'][i]:12.2f}  "
-                      f"{r['geometry_factor'][i]:9.3e}  {r['absolute_efficiency'][i]:9.3e}  {r['intrinsic_efficiency'][i]:9.3e}")
+                print(f"{a:5.0f}  "
+                      f"{with_error(r['rel_area'][i], r['rel_area_err'][i]):>14}  "
+                      f"{with_error(r['rel_ptt'][i], r['rel_ptt_err'][i]):>14}  "
+                      f"{with_error(r['res'][i], r['res_err'][i]):>14}  "
+                      f"{with_error(r['centroid'][i], r['centroid_err'][i]):>16}  "
+                      f"{with_error(r['height'][i], r['height_err'][i]):>16}  "
+                      f"{with_error(r['fwhm_keV'][i], r['fwhm_keV_err'][i]):>14}  "
+                      f"{r['geometry_factor'][i]:10.3e}  "
+                      f"{with_error(r['absolute_efficiency'][i], r['absolute_efficiency_error'][i]):>20}  "
+                      f"{with_error(r['intrinsic_efficiency'][i], r['intrinsic_efficiency_error'][i]):>20}")
     plt.show()      # show the fit checks for this source
     return out

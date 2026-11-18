@@ -585,6 +585,17 @@ def intrinsic_eff(detector, efficiency_results=None, spectra=None):
             updated_peak["intrinsic_efficiency_error"] = abs_err / G
 
             results[source].append(updated_peak)
+        print(f"\nSource: {source}")
+        print(
+                        
+                        f"\n  Intrinsic efficiency: "
+                        f"{ updated_peak["intrinsic_efficiency"]:.6e} +/- "
+                        f"{updated_peak["intrinsic_efficiency_error"]:.2e}"
+                    )
+        
+        print("\n" + "=" * 65)
+        print("INTRINSIC EFFICIENCY CALCULATION COMPLETE")
+        print("=" * 65)
 
     return results
 
