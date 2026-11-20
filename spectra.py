@@ -48,7 +48,21 @@ def read_mca(filename):
         spectrum_data = file.readlines()
 
     counts = []
-    time = float(spectrum_data[8].replace(' ', '').replace('REAL_TIME-', ''))
+
+    def find_time(key):
+        for line in spectrum_data:
+            if line.upper().startswith(key):
+                _, separator, value = line.partition("-")
+                if separator:
+                    return float(value.strip())
+        return None
+
+    time = find_time("LIVE_TIME")
+    if time is None:
+        time = find_time("REAL_TIME")
+        if time is None:
+            raise ValueError(f"No LIVE_TIME or REAL_TIME found in {filename}")
+        print(f"Warning: {filename} has no LIVE_TIME; using REAL_TIME instead.")
     
     beginning = spectrum_data.index("<<DATA>>\n") + 1
     
@@ -66,13 +80,15 @@ def read_mca(filename):
 class Spectrum:
 
     def __init__(
-        self,
-        filename,
-        counts,
-        channels,
-        live_time,
-        background=None
+            self,
+            filename,
+            counts,
+            channels,
+            live_time,
+            background=None,
+            distance=None
     ):
+
 
         self.filename = str(filename)
         self.counts = np.asarray(counts, dtype=float)
@@ -80,6 +96,7 @@ class Spectrum:
         self.live_time = float(live_time)
 
         self.background = background
+        self.distance = distance
 
         self.rois = []
         self.peaks = []
@@ -94,9 +111,8 @@ class Spectrum:
         # if np.any(np.diff(self.channels) <= 0):
         #     raise ValueError("Channels must be strictly increasing.")
 
-
     @classmethod
-    def from_file(cls, filename, background_file=None):
+    def from_file(cls, filename, background_file=None, distance=None):
 
         suffix = Path(filename).suffix.lower()
 
@@ -119,7 +135,8 @@ class Spectrum:
             counts=counts,
             channels=channels,
             live_time=live_time,
-            background=background
+            background=background,
+            distance=distance
         )
 
 

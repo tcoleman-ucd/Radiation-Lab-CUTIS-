@@ -1,106 +1,150 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
+"""Calculate and plot energy resolution from identified photopeak fits."""
+
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
+
+
+PLOT_DIR = Path("Plots")
 
 
 def resolution_model(E, a, b, c):
-    """FWHM^2 = a + b*E + c*E^2   (so R^2 = a/E^2 + b/E + c)."""
-    return a + b * E + c * E ** 2
+    """FWHM(E)^2 = a + b E + c E^2, with energies in keV."""
+    return a + b * E + c * E**2
 
 
-def resolution(detector, title="Resolution", show=True):
-    """Energy resolution from a Detector object (uses the peaks stored in it)."""
-    cal = detector.calibration
-    peaks = detector.calibration_peak_records
+def with_error(value, error, sig=2):
+    
+    if not np.isfinite(value):
+        return "n/a"
+    if not np.isfinite(error) or error <= 0:
+        return f"{value:.4g} ± n/a"
 
-    if cal is None:
+  
+    if value != 0 and (abs(value) >= 1e5 or abs(value) < 1e-3):
+        power = int(np.floor(np.log10(abs(value))))
+        scale = 10.0**power
+        return f"({with_error(value / scale, error / scale, sig)})e{power:+d}"
+
+    decimals = max(sig - 1 - int(np.floor(np.log10(error))), 0)
+    return f"{value:.{decimals}f} ± {error:.{decimals}f}"
+
+
+def resolution(detector, title=None):
+    """Calculate R=FWHM/E, fit the manual's model and save a labelled plot."""
+    if detector.calibration is None:
         raise ValueError("Calibrate the detector first.")
 
-    channels = cal["channels"]
-    channel_errs = cal["channel_errors"]
-    E = cal["energies"]                       # known energies (keV)
-    fwhm = np.array([pk["fwhm"] for pk in peaks])
-    fwhm_err = np.array([pk["fwhm_error"] for pk in peaks])
+    peaks = detector.calibration_peak_records
+    if not peaks:
+        raise ValueError("No identified photopeaks are available.")
 
-    if cal.get("kind", "linear") == "linear":
-        p = [cal["gradient"], cal["intercept"]]
-        slope = np.full_like(channels, p[0])
+    E = np.array([peak["energy"] for peak in peaks], dtype=float)
+    fwhm = np.array([peak["fwhm"] for peak in peaks], dtype=float)
+    fwhm_error = np.array([peak["fwhm_error"] for peak in peaks], dtype=float)
+
+    # The linear calibration converts widths from channels to keV.
+    m = abs(float(detector.calibration["gradient"]))
+    # The calibration slope uncertainty also contributes to the width error.
+    slope_variance = float(detector.calibration["covariance"][0, 0])
+    if np.isfinite(slope_variance) and slope_variance >= 0:
+        m_error = np.sqrt(slope_variance)
     else:
-        p = cal["quadratic"]["coefficients"]
-        slope = 2 * p[0] * channels + p[1]
+        # Two-point calibrations may not have an estimable slope covariance.
+        print(f"Warning: {detector.name}: calibration slope uncertainty "
+              "is unavailable; resolution errors exclude this contribution.")
+        m_error = 0.0
+    dE = m * fwhm
+    dE_error = np.hypot(m * fwhm_error, fwhm * m_error)
+    R = dE / E
+    R_error = dE_error / E  # tabulated photopeak energies are treated as fixed
 
-    dE = fwhm * slope                  # FWHM in keV
+    valid = (np.isfinite(E) & np.isfinite(R) & np.isfinite(R_error)
+             & (E > 0) & (dE > 0) & (dE_error > 0))
+    if not valid.all():
+        print(f"Warning: {detector.name}: ignoring {sum(~valid)} invalid resolution points.")
 
-    dE_err = fwhm_err * slope
-    R, R_err = dE / E, dE_err / E
+    E, R, R_error, dE, dE_error = (v[valid] for v in (E, R, R_error, dE, dE_error))
+    sources = np.array([p["isotope"] for p in peaks])[valid]
+    if len(E) == 0:
+        raise ValueError("No usable resolution measurements remain.")
 
-    if len(E) < 4:
-        print("Warning: fewer than 4 peaks, the 3-parameter fit is poorly constrained.")
-
-    # fit FWHM^2 vs E
-    y2, y2_err = dE ** 2, 2 * dE * dE_err
-    p0 = [1.0, 1.0, np.mean(R) ** 2]
-    popt, pcov = curve_fit(resolution_model, E, y2, p0=p0, sigma=y2_err, absolute_sigma=True, bounds=(0, np.inf), maxfev=20000)
-    perr = np.sqrt(np.diag(pcov))
-
-    R_fit = np.sqrt(resolution_model(E, *popt)) / E
-    residuals = R - R_fit
-    chi2_red = np.sum((residuals / R_err) ** 2) / (len(E) - 3) if len(E) > 3 else np.nan
-
-    print(f"\n{title}: R^2 = a/E^2 + b/E + c")
-    for n, v, e in zip("abc", popt, perr):
-        print(f"  {n} = {v:.4g} +/- {e:.2g}")
-    print(f"  reduced chi2 = {chi2_red:.2f}")
-
-    detectors, isotopes = [], []
-    for pk in peaks:
-        tokens = Path(pk["source"]).stem.split("_")
-        detectors.append(tokens[0])
-        isotopes.append(tokens[1])
-
-    if cal.get("kind", "linear") == "linear":
-        E_fit = detector.channel_to_energy(channels)
+    # Fit FWHM^2 rather than R^2, as advised by the laboratory manual.
+    params = None
+    errors = None
+    covariance = None
+    if len(E) >= 4:
+        squared_fwhm = dE**2
+        squared_error = 2 * dE * dE_error
+        try:
+            params, covariance = curve_fit(
+                resolution_model, E, squared_fwhm,
+                sigma=squared_error, absolute_sigma=True,
+                bounds=(0, np.inf), maxfev=20000,
+            )
+            errors = np.sqrt(np.diag(covariance))
+        except (RuntimeError, ValueError) as error:
+            print(f"{detector.name}: resolution model fit failed ({error}).")
     else:
-        E_fit = p[0] * channels ** 2 + p[1] * channels + p[2]
-    E_fit_err = slope * channel_errs
+        print(f"{detector.name}: need at least four valid photopeaks for a "
+              "three-parameter resolution fit with a residual check.")
 
-    print("\nDetector  Isotope  E known  E fit   E fit err  FWHM (keV)  FWHM err      R    R err   R fit")
-    for i, pk in enumerate(peaks):
-        det, iso = Path(pk["source"]).stem.split("_")[:2]
-        print(f"{det:8}  {iso:7}  {E[i]:7.1f}  {E_fit[i]:6.1f}  {E_fit_err[i]:9.2f}  "
-              f"{dE[i]:10.2f}  {dE_err[i]:8.2f}  "
-              f"{R[i]:6.3f}  {R_err[i]:6.3f}  {R_fit[i]:6.3f}")
+    if params is not None:
+        print(f"\n{detector.name} resolution model (FWHM^2 = a + bE + cE^2):")
+        for name, unit, value, uncertainty in zip(
+                "abc", ("keV^2", "keV", ""), params, errors):
+            print(f"  {name} = {with_error(value, uncertainty)} {unit}".rstrip())
 
-    E_line = np.logspace(np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200)
-    R_line = np.sqrt(resolution_model(E_line, *popt)) / E_line
+    print(f"\n{detector.name} photopeak resolutions:")
+    print(f"{'Source':8}{'E (keV)':>12}{'FWHM (keV)':>20}{'R = FWHM/E (%)':>22}")
+    for source, energy, width, width_err, r, r_err in zip(
+            sources, E, dE, dE_error, R, R_error):
+        print(f"{source:8}{energy:12.3f}"
+              f"{with_error(width, width_err):>20}"
+              f"{with_error(100 * r, 100 * r_err):>22}")
 
-    plt.figure(figsize=(10, 6))
-    plt.errorbar(E, R*100, yerr=R_err*100, fmt="o", color="black", capsize=3, label="Data")
-    offsets = [(-10, 28), (10, -32)]      # first label above-left, second below-right
-    for i, pk in enumerate(peaks):
-        det, iso = Path(pk["source"]).stem.split("_")[:2]
-        plt.annotate(f"{iso} {E[i]:.0f} keV", (E[i], R[i] * 100),
-                     textcoords="offset points", xytext=offsets[i % 2],
-                     ha="center", fontsize=9,
-                     arrowprops=dict(arrowstyle="-", color="gray", lw=0.8))
-    plt.plot(E_line, R_line*100, "r-", lw=2, label=r"Fit: $R=\sqrt{aE^{-2}+bE^{-1}+c}$")
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.xticks([10, 20, 50, 100, 200, 500, 1000, 2000], ["10", "20", "50", "100", "200", "500", "1000", "2000"])
-    plt.yticks([1, 2, 5, 10, 20, 50, 60], ["1", "2", "5", "10", "20", "50", "60"])
-    plt.xlabel("Energy (keV)"); plt.ylabel("Resolution  ΔE/E (%)")
-    plt.title(title)
-    plt.grid(True, which="both", ls="--", alpha=0.5); plt.legend()
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    for source in dict.fromkeys(sources):
+        mask = sources == source
+        ax.errorbar(E[mask], 100 * R[mask], yerr=100 * R_error[mask],
+                    fmt="o", capsize=3, label=source)
 
-    plt.figure(figsize=(7, 3.5))
-    plt.errorbar(E, residuals, yerr=R_err, fmt="o", color="black", capsize=3)
-    plt.axhline(0, color="red", ls="--")
-    plt.xlabel("Energy (keV)")
-    plt.ylabel(r"$R_{data}-R_{fit}$")
-    plt.title(f"{title} residuals")
-    plt.grid(True, ls="--", alpha=0.5)
-    plt.show()
+    # Restore the original isotope/energy labels for each individual photopeak.
+    offsets = [(-10, 28), (10, -32)]
+    for i, (source, energy, r) in enumerate(zip(sources, E, R)):
+        ax.annotate(
+            f"{source} {energy:.0f} keV", (energy, 100*r),
+            textcoords="offset points", xytext=offsets[i % 2],
+            ha="center", fontsize=9,
+            arrowprops=dict(arrowstyle="-", color="gray", lw=0.8)
+        )
 
-    return {"params": popt, "errs": perr, "E": E, "R": R, "R_err": R_err,
-            "chi2_red": chi2_red}
+    if params is not None:
+        E_line = np.logspace(
+            np.log10(E.min() * 0.8), np.log10(E.max() * 1.2), 200
+        )
+        # Multiply by 100 so the curve is in % like the data points.
+        R_line = 100 * np.sqrt(resolution_model(E_line, *params)) / E_line
+        ax.plot(
+            E_line, R_line, "r-", lw=2,
+            label=r"Fit: $R=\sqrt{aE^{-2}+bE^{-1}+c}$"
+        )
+
+    ax.set(xscale="log", yscale="log", xlabel="Gamma-ray energy (keV)",
+           ylabel="Energy resolution FWHM / E (%)",
+           title=title or f"{detector.name} energy resolution")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    PLOT_DIR.mkdir(exist_ok=True)
+    for extension in ("pdf", "jpg"):
+        fig.savefig(PLOT_DIR / f"Resolution_{detector.name}.{extension}",
+                    dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    return {"params": params, "errs": errors, "covariance": covariance,
+            "E": E, "R": R, "R_err": R_error,
+            "fwhm_keV": dE, "fwhm_keV_err": dE_error,
+            "source": sources}

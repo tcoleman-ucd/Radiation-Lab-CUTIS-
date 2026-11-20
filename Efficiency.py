@@ -25,6 +25,9 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+from geometry import cylinder_geometric_factor, square_geometric_factor
+from fitting import fit_roi
+from scipy.optimize import curve_fit
 
 
 # ============================================================
@@ -69,26 +72,26 @@ CALIBRATION_DATE = "1979/02/01 12:00:00"
 # Gamma emission probabilities (photons per decay).
 # Add the remaining values from your laboratory manual.
 
+# Photon emission fractions and their 1-sigma uncertainties from the
+# course manual, Table 2, p. 57. Keys are photopeak energies in keV.
 EMISSION_FRACTIONS = {
-
-    "Co": {
-        1173.228: 0.9985,
-        1332.492: 0.999826
-    },
-    "Ba": {
-        356.0129: 0.6205,
-        80.9979: 0.329,
-        302.8508: 0.1834
-        },
-    "Cs":{
-        661.657:0.8499,
-    },
-    "Am":{
-        59.5409: 0.3578,
-        26.3446: 0.024
-    }
-
+    "Co": {1173.228: 0.9985, 1332.492: 0.999826},
+    "Ba": {53.1622: 0.0214, 79.6142: 0.0265, 80.9979: 0.329,
+           276.3989: 0.0716, 302.8508: 0.1834,
+           356.0129: 0.6205, 383.8485: 0.0894},
+    "Cs": {661.657: 0.8499},
+    "Am": {26.3446: 0.024, 33.1963: 0.00121, 59.5409: 0.3578},
 }
+
+EMISSION_FRACTION_ERRORS = {
+    "Co": {1173.228: 0.0003, 1332.492: 0.000006},
+    "Ba": {53.1622: 0.0003, 79.6142: 0.0005, 80.9979: 0.003,
+           276.3989: 0.0005, 302.8508: 0.0013,
+           356.0129: 0.0019, 383.8485: 0.0006},
+    "Cs": {661.657: 0.0020},
+    "Am": {26.3446: 0.003, 33.1963: 0.00003, 59.5409: 0.0009},
+}
+
 
 
 # ============================================================
@@ -227,61 +230,61 @@ def extract_measurement_date(filename):
     return measurement_date
 
 
-# # ============================================================
-# # SELECT A PEAK
-# # ============================================================
+# ============================================================
+# SELECT A PEAK
+# ============================================================
 
-# def select_peak(detector, source):
-#     """
-#     Display fitted peaks for a source and ask the user
-#     which peak should be used for efficiency.
-#     """
+def select_peak(detector, source):
+    """
+    Display fitted peaks for a source and ask the user
+    which peak should be used for efficiency.
+    """
 
-#     records = [
-#         peak
-#         for peak in detector.calibration_peak_records
-#         if peak["isotope"] == source
-#     ]
+    records = [
+        peak
+        for peak in detector.calibration_peak_records
+        if peak["isotope"] == source
+    ]
 
-#     if not records:
-#         raise ValueError(
-#             f"No fitted calibration peaks found for {source}."
-#         )
+    if not records:
+        raise ValueError(
+            f"No fitted calibration peaks found for {source}."
+        )
 
-#     records = sorted(
-#         records,
-#         key=lambda peak: peak["energy"]
-#     )
+    records = sorted(
+        records,
+        key=lambda peak: peak["energy"]
+    )
 
-#     print("\nAvailable fitted peaks")
-#     print("-" * 65)
+    print("\nAvailable fitted peaks")
+    print("-" * 65)
 
-#     for i, peak in enumerate(records, 1):
+    for i, peak in enumerate(records, 1):
 
-#         print(
-#             f"{i}. Energy: {peak['energy']:.3f} keV | "
-#             f"Centroid: {peak['centroid']:.2f} channels | "
-#             f"Count rate: {peak['area']:.3f} CPS"
-#         )
+        print(
+            f"{i}. Energy: {peak['energy']:.3f} keV | "
+            f"Centroid: {peak['centroid']:.2f} channels | "
+            f"Count rate: {peak['area']:.3f} CPS"
+        )
 
-#     print("-" * 65)
+    print("-" * 65)
 
-#     while True:
+    while True:
 
-#         answer = input(
-#             "\nSelect the peak number for efficiency calculation: "
-#         ).strip()
+        answer = input(
+            "\nSelect the peak number for efficiency calculation: "
+        ).strip()
 
-#         try:
-#             choice = int(answer)
+        try:
+            choice = int(answer)
 
-#             if 1 <= choice <= len(records):
-#                 return records[choice - 1]
+            if 1 <= choice <= len(records):
+                return records[choice - 1]
 
-#             print("Please select one of the listed peaks.")
+            print("Please select one of the listed peaks.")
 
-#         except ValueError:
-#             print("Please enter a valid peak number.")
+        except ValueError:
+            print("Please enter a valid peak number.")
 
 
 # ============================================================
@@ -335,139 +338,191 @@ def get_emission_fraction(source, energy):
             print("Please enter a valid number.")
 
 
+def get_emission_fraction_error(source, energy):
+    """1-sigma uncertainty in a Table 2 photon emission probability."""
+    for known_energy, uncertainty in EMISSION_FRACTION_ERRORS.get(source, {}).items():
+        if np.isclose(energy, known_energy, rtol=0, atol=0.01):
+            return uncertainty
+    print(f"Warning: no emission-fraction uncertainty for {source} {energy:.3f} keV.")
+    return 0.0
+
+
+# ============================================================
+# FIT ADDITIONAL DISTANCE SPECTRA
+# ============================================================
+
+def fit_distance_peaks(detector, distance):
+    """Fit additional distance spectra using the original calibration ROIs."""
+
+    records = []
+
+    for source, spectrum in detector.distance_spectra[distance].items():
+
+        # Reuse ROIs selected during calibration
+        for original_fit in detector.spectra[source].fit_results:
+
+            guesses = [
+                peak["centroid"]
+                for peak in original_fit["components"]
+            ]
+
+            try:
+                fit = fit_roi(
+                    spectrum,
+                    *original_fit["roi"],
+                    n=original_fit["n_peaks"],
+                    corrected=True,
+                    peak_guesses=guesses if original_fit["n_peaks"] == 2 else None
+                )
+
+            except (ValueError, RuntimeError) as error:
+                print(f"{source}: peak fitting failed ({error})")
+                continue
+
+            # Retain the original photopeak identifications
+            for original, fitted in zip(
+                original_fit["components"], fit["components"]
+            ):
+
+                if original.get("accepted"):
+
+                    records.append({
+                        **fitted,
+                        "isotope": source,
+                        "energy": original["energy"],
+                        "source": spectrum.filename,
+                        "accepted": True
+                    })
+
+    return records
+
+
 # ============================================================
 # ABSOLUTE EFFICIENCY
 # ============================================================
 
-def absolute_efficiency(detector, source=None):
+def absolute_efficiency(detector, spectra=None, peak_records=None):
     """
-    Calculate absolute efficiency at a user-selected photopeak.
+    Calculate absolute photopeak efficiencies.
 
-    Parameters
-    ----------
-    detector:
-        A calibrated Detector object.
-
-    source:
-        Optional isotope name, e.g. "Co".
-        If omitted, the user selects a source.
-
-    Returns
-    -------
-    Dictionary containing:
-        source
-        energy
-        count_rate
-        count_rate_error
-        activity_bq
-        emission_fraction
-        absolute_efficiency
-        efficiency_error
+    By default, use the calibration spectra and their fitted peaks.
+    Alternative spectra and peak records can be supplied for
+    measurements at other distances.
     """
+
+    if spectra is None:
+        spectra = detector.spectra
+
+    if peak_records is None:
+        peak_records = detector.calibration_peak_records
+
     results = {}
+
     if detector.calibration is None:
         raise ValueError(
             "Calibrate the detector before calculating efficiency."
         )
 
-    if not detector.calibration_peak_records:
+    if not peak_records:
         raise ValueError(
-            "No calibration peak records are available."
+            "No fitted peak records are available."
         )
 
     # --------------------------------------------------------
-    # Select source
+    # Loop through sources
     # --------------------------------------------------------
-    for source, spectrum in detector.spectra.items():
 
-            if source not in SOURCE_PARAMETERS:
-                print(f"\nSkipping unknown source: {source}")
-                continue
+    for source, spectrum in spectra.items():
 
-            # Retrieve peaks belonging to this source.
-            peaks = [
-                peak for peak in detector.calibration_peak_records
-                if peak["isotope"] == source
-            ]
+        if source not in SOURCE_PARAMETERS:
+            print(f"\nSkipping unknown source: {source}")
+            continue
 
-            if not peaks:
-                print(f"\nNo fitted peaks available for {source}.")
-                continue
+        # Retrieve fitted peaks belonging to this source
+        peaks = [
+            peak for peak in peak_records
+            if peak["isotope"] == source
+        ]
 
-            # Obtain measurement date and remaining activity.
-            measurement_date = extract_measurement_date(
-                spectrum.filename
+        if not peaks:
+            print(f"\nNo fitted peaks available for {source}.")
+            continue
+
+        # Obtain measurement date and remaining activity
+        measurement_date = extract_measurement_date(
+            spectrum.filename
+        )
+
+        activity_bq = source_activity(
+            measurement_date,
+            source
+        )
+
+        activity_error = (
+            activity_bq *
+            SOURCE_PARAMETERS[source]["accuracy"] / 100
+        )
+
+        results[source] = []
+
+        print(f"\nSource: {source}")
+        print(f"Measurement date: {measurement_date}")
+        print(f"Activity: {activity_bq:.3f} +/- {activity_error:.3f} Bq")
+
+        # Calculate efficiency for every fitted peak
+        for peak in peaks:
+
+            energy = peak["energy"]
+            count_rate = peak["area"]
+            count_rate_error = peak["area_error"]
+
+            emission_fraction = get_emission_fraction(
+                source,
+                energy
             )
 
-            activity_bq = source_activity(
-                measurement_date,
-                source
+            emission_fraction_error = get_emission_fraction_error(source, energy)
+
+            absolute_efficiency = (
+                count_rate /
+                (activity_bq * emission_fraction)
             )
 
-            activity_error = (
-                activity_bq *
-                SOURCE_PARAMETERS[source]["accuracy"] / 100
+            # Propagate peak-area and source-activity uncertainties
+            relative_variance = (
+                (count_rate_error / count_rate) ** 2
+                + (activity_error / activity_bq) ** 2
+                + (emission_fraction_error / emission_fraction) ** 2
+            ) if count_rate > 0 else np.nan
+
+            efficiency_error = (
+                absolute_efficiency * np.sqrt(relative_variance)
             )
 
-            results[source] = []
+            result = {
+                "source": source,
+                "energy": energy,
+                "count_rate": count_rate,
+                "count_rate_error": count_rate_error,
+                "activity_bq": activity_bq,
+                "activity_error": activity_error,
+                "emission_fraction": emission_fraction,
+                "emission_fraction_error": emission_fraction_error,
+                "absolute_efficiency": absolute_efficiency,
+                "efficiency_error": efficiency_error,
+            }
 
-            print(f"\nSource: {source}")
-            print(f"Measurement date: {measurement_date}")
-            print(f"Activity: {activity_bq:.3f} +/- {activity_error:.3f} Bq")
+            results[source].append(result)
 
-            # Calculate efficiency for every fitted peak.
-            for peak in peaks:
-
-                energy = peak["energy"]
-                count_rate = peak["area"]
-                count_rate_error = peak["area_error"]
-
-                emission_fraction = get_emission_fraction(
-                    source,
-                    energy
-                )
-
-                absolute_efficiency = (
-                    count_rate /
-                    (activity_bq * emission_fraction)
-                )
-
-                # Propagate peak-area and source-activity uncertainties.
-                relative_variance = (
-                    (count_rate_error / count_rate) ** 2
-                    + (activity_error / activity_bq) ** 2
-                ) if count_rate != 0 else np.nan
-
-                efficiency_error = (
-                    absolute_efficiency * np.sqrt(relative_variance)
-                )
-
-                result = {
-                    "source": source,
-                    "energy": energy,
-                    "count_rate": count_rate,
-                    "count_rate_error": count_rate_error,
-                    "activity_bq": activity_bq,
-                    "activity_error": activity_error,
-                    "emission_fraction": emission_fraction,
-                    "absolute_efficiency": absolute_efficiency,
-                    "efficiency_error": efficiency_error,
-                }
-
-                results[source].append(result)
-
-                print(
-                    f"\n  Energy: {energy:.3f} keV"
-                    f"\n  Count rate: {count_rate:.4f} +/- "
-                    f"{count_rate_error:.4f} CPS"
-                    f"\n  Emission fraction: {emission_fraction:.6f}"
-                    f"\n  Absolute efficiency: "
-                    f"{absolute_efficiency:.6e} +/- "
-                    f"{efficiency_error:.2e}"
-                )
-
-        # Store results directly in the Detector object.
-    detector.efficiency = results
+            print(
+                f"\n  Energy: {energy:.3f} keV"
+                f"\n  Count rate: {count_rate:.4f} +/- "
+                f"{count_rate_error:.4f} CPS"
+                f"\n  Emission fraction: {emission_fraction:.6f}"
+                f"\n  Absolute efficiency: "
+                f"{absolute_efficiency:.6e} +/- "
+                f"{efficiency_error:.2e}"
+            )
 
     print("\n" + "=" * 65)
     print("EFFICIENCY CALCULATION COMPLETE")
@@ -475,88 +530,214 @@ def absolute_efficiency(detector, source=None):
 
     return results
 
-def intrinsic_eff(asb_effic, filename):   
-    #WHatever the intrinisic effeciencie ends up being you can append it to the result in absolute effciency
-    '''
-    Function that calculates the intrinsic efficiency of the detector.
-    This is done by determining and applying a geometry factor which 
-    itself is dependant on the detectors radius and distance from 
-    the radio isotope source.
-    __________________
-    Parameters
-        dist: Float
-        The distance the detector is from the radioisotope
-
-        radius: Float
-        radius of the detector
-
-        abs_effic: Float
-        absolute efficiency of the detector
-    ___________________
-    Outputs
-        intrinsic_efficiency: Float
-        intrinsic efficiency of the detector
-    
-    '''
-    pass
-    # #get detector from file name
-    # detector = str(filename).split('_')[0]
-
-    # # radius list of detectors
-    # dist = 0.1 # meters
-    # rad_list =  {
-    #     "BGO": #radius of bgo detector,
-    #     "NaI": #radius of nai detector,
-    #     "CdTe": #radius of bcdte detector
-    # }
-
-    # radius = rad_list[detector]
-
-    # #geometry factor
-    # G = 0.5 * (1 - (dist / (sqrt((dist**2)+(radius**2))))) 
-    # intrinsic_efficiency = abs_effic / G
-    
-    # return intrinsic_efficiency
 
 
-
-def plot_absolute_efficiency(detector):
+def intrinsic_eff(detector, efficiency_results=None, spectra=None):
     """
-    Plot absolute efficiency against gamma-ray energy
-    for all sources belonging to a detector.
+    Calculate intrinsic efficiency using the detector geometry.
+    Supports measurements at different distances.
     """
 
-    if detector.efficiency is None:
-        raise ValueError("Calculate efficiency first.")
+    if efficiency_results is None:
+        efficiency_results = detector.efficiency
 
-    plt.figure(figsize=(8, 5))
+    if spectra is None:
+        spectra = detector.spectra
 
-    for source, peaks in detector.efficiency.items():
+    if not efficiency_results:
+        raise ValueError("Calculate absolute efficiency first.")
 
-        if not peaks:
-            continue
+    results = {}
 
-        energies = [p["energy"] for p in peaks]
-        efficiencies = [
-            p["absolute_efficiency"] for p in peaks
-        ]
-        errors = [
-            p["efficiency_error"] for p in peaks
-        ]
+    for source, peaks in efficiency_results.items():
 
-        plt.errorbar(
-            energies,
-            efficiencies,
-            yerr=errors,
-            fmt="o",
-            capsize=4,
-            label=source
+        dist = spectra[source].distance
+
+        # Detector dimensions from Sheila:
+        # BGO and NaI: 2" diameter x 2" length
+        # CdTe: 3 x 3 x 1 mm
+        # On-axis measurements: theta = 0 radians
+
+        if detector.name in ("BGO", "NaI"):
+            G = cylinder_geometric_factor(
+                detector.radius, 0.0508, dist, 0
+            )
+
+        elif detector.name == "CdTe":
+            G = square_geometric_factor(
+                0.003, 0.001, dist, 0
+            )
+
+        else:
+            raise ValueError(f"Unknown detector: {detector.name}")
+
+        results[source] = []
+
+        for peak in peaks:
+
+            abs_eff = peak["absolute_efficiency"]
+            abs_err = peak["efficiency_error"]
+
+            updated_peak = peak.copy()
+
+            updated_peak["geometry_factor"] = G
+            updated_peak["intrinsic_efficiency"] = abs_eff / G
+            updated_peak["intrinsic_efficiency_error"] = abs_err / G
+
+            results[source].append(updated_peak)
+        print(f"\nSource: {source}")
+        print(
+                        
+                        f"\n  Intrinsic efficiency: "
+                        f"{ updated_peak["intrinsic_efficiency"]:.6e} +/- "
+                        f"{updated_peak["intrinsic_efficiency_error"]:.2e}"
+                    )
+        
+        print("\n" + "=" * 65)
+        print("INTRINSIC EFFICIENCY CALCULATION COMPLETE")
+        print("=" * 65)
+
+    return results
+
+
+
+def calculate_distance_efficiencies(detector):
+    """Calculate efficiencies for all additional distances."""
+
+    results = {}
+
+    for distance, spectra in detector.distance_spectra.items():
+
+        # Fit peaks using the original calibration ROIs
+        peaks = fit_distance_peaks(detector, distance)
+
+        # Calculate absolute efficiency
+        absolute = absolute_efficiency(
+            detector,
+            spectra=spectra,
+            peak_records=peaks
         )
 
-    plt.xlabel("Gamma-ray Energy (keV)")
-    plt.ylabel("Absolute Efficiency")
-    plt.title(f"{detector.name} Absolute Efficiency")
-    plt.grid(alpha=0.3)
-    plt.legend(title="Source")
-    plt.tight_layout()
-    plt.show()
+        # Calculate intrinsic efficiency
+        results[distance] = intrinsic_eff(
+            detector,
+            efficiency_results=absolute,
+            spectra=spectra
+        )
+
+    return results
+
+
+
+def efficiency_model(x, a, b, c):
+    """Quadratic model for ln(efficiency) as a function of ln(energy)."""
+    return a + b*x + c*x**2
+
+
+def fit_intrinsic_efficiency(detector):
+    """Fit ln(eps) = a + b ln(E) + c ln(E)^2 (course manual, Eq. 20)."""
+    if not detector.efficiency:
+        raise ValueError("Calculate intrinsic efficiency first.")
+
+    peaks = [p for source_peaks in detector.efficiency.values() for p in source_peaks]
+    E = np.array([p["energy"] for p in peaks], dtype=float)
+    eff = np.array([p["intrinsic_efficiency"] for p in peaks], dtype=float)
+    err = np.array([p["intrinsic_efficiency_error"] for p in peaks], dtype=float)
+
+    valid = (np.isfinite(E) & np.isfinite(eff) & np.isfinite(err)
+             & (E > 0) & (eff > 0) & (eff <= 1) & (err > 0))
+    if not np.all(valid):
+        print(f"Warning: {detector.name}: {sum(~valid)} intrinsic-efficiency "
+              "point(s) are nonphysical or invalid and will not be fitted.")
+
+    if valid.sum() < 4:
+        print(f"{detector.name}: need at least four valid efficiency points "
+              "to fit a quadratic in log-energy and assess its residuals.")
+        return None
+
+    x = np.log(E[valid])
+    y = np.log(eff[valid])
+    sigma_y = err[valid] / eff[valid]  # first-order uncertainty in ln(eff)
+    try:
+        coefficients, covariance = curve_fit(
+            efficiency_model, x, y,
+            sigma=sigma_y, absolute_sigma=True
+        )
+    except (RuntimeError, ValueError) as error:
+        print(f"{detector.name}: intrinsic-efficiency fit failed ({error}).")
+        return None
+
+    a, b, c = coefficients
+    print(f"\n{detector.name} intrinsic efficiency: ln(eps) = a + b ln(E) + c ln(E)^2")
+    for label, value, uncertainty in zip(
+        "abc", (a, b, c), np.sqrt(np.diag(covariance))
+    ):
+        print(f"  {label} = {value:.5g} +/- {uncertainty:.2g}")
+
+    return {"coefficients": np.array([a, b, c]), "covariance": covariance,
+            "energy_min": float(E[valid].min()),
+            "energy_max": float(E[valid].max())}
+
+
+def plot_efficiency(detector, kind, show=False):
+    if not detector.efficiency:
+        raise ValueError("Calculate efficiency first.")
+
+    if kind == "absolute":
+        value_key, error_key = "absolute_efficiency", "efficiency_error"
+    elif kind == "intrinsic":
+        value_key, error_key = "intrinsic_efficiency", "intrinsic_efficiency_error"
+    else:
+        raise ValueError(f"Unknown efficiency type: {kind}")
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    for source, peaks in detector.efficiency.items():
+        E = np.array([p["energy"] for p in peaks], dtype=float)
+        values = np.array([p[value_key] for p in peaks], dtype=float)
+        errors = np.array([p[error_key] for p in peaks], dtype=float)
+        valid = (np.isfinite(E) & np.isfinite(values) & np.isfinite(errors)
+                 & (E > 0) & (values > 0) & (errors >= 0))
+        if valid.any():
+            ax.errorbar(E[valid], values[valid], yerr=errors[valid],
+                        fmt="o", capsize=3, label=source)
+        if (~valid).any():
+            print(f"Warning: {detector.name} {source}: {sum(~valid)} points "
+                  "could not be shown on logarithmic axes.")
+
+    if kind == "intrinsic":
+        fit = getattr(detector, "efficiency_fit", None)
+        if fit is not None:
+            # Display the model beyond the fitted points, as requested.
+            # Outside measured energies it is an extrapolation.
+            E_line = np.logspace(np.log10(10), np.log10(2000), 500)
+            curve = np.exp(efficiency_model(np.log(E_line), *fit["coefficients"]))
+            ax.plot(
+                E_line, curve, "r-", lw=2,
+                label=r"Fit: $\ln\varepsilon_{\mathrm{int}} = a + b\ln E + c(\ln E)^2$"
+            )
+        ax.axhline(1, ls="--", lw=1, color="gray", alpha=0.6)
+
+    ax.set(xscale="log", yscale="log", xlabel="Gamma-ray energy (keV)",
+           ylabel=f"{kind.capitalize()} photopeak efficiency",
+           title=f"{detector.name} {kind} photopeak efficiency")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    folder = Path("Plots")
+    folder.mkdir(exist_ok=True)
+    for extension in ("pdf", "jpg"):
+        fig.savefig(folder / f"Efficiency_{kind}_{detector.name}.{extension}",
+                    dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    plt.close(fig)
+
+
+def plot_absolute_efficiency(detector, show=False):
+    """Plot measured absolute photopeak efficiency against energy."""
+    plot_efficiency(detector, "absolute", show=show)
+
+
+def plot_intrinsic_efficiency(detector, show=False):
+    """Plot intrinsic efficiency plus the fitted log-polynomial model."""
+    plot_efficiency(detector, "intrinsic", show=show)
